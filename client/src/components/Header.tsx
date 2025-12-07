@@ -52,7 +52,7 @@ export function Header() {
                 <div className="absolute inset-0 rounded-lg bg-primary/30 blur-lg opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
               <span className="text-xl font-bold tracking-tight text-glow-primary hidden sm:block">
-                CryptoLens
+                TickerHub
               </span>
             </Link>
 

@@ -72,9 +72,9 @@ export default function LandingPage() {
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 animate-fade-in-up">
-              <span className="text-glow-primary">CryptoLens</span>
+              <span className="text-glow-primary">TickerHub</span>
               <br />
-              <span className="text-muted-foreground">Blockchain Analytics Platform</span>
+              <span className="text-muted-foreground">Market Intelligence Platform</span>
             </h1>
 
             <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-8 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
@@ -228,7 +228,7 @@ export default function LandingPage() {
               <div className="w-6 h-6 rounded bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
                 <Blocks className="w-4 h-4 text-primary-foreground" />
               </div>
-              <span className="font-semibold">CryptoLens</span>
+              <span className="font-semibold">TickerHub</span>
             </div>
             <p className="text-sm text-muted-foreground">
               Powered by CoinGecko, Etherscan, and Blockchain.com APIs

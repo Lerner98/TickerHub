@@ -42,8 +42,10 @@ export function formatTimestamp(timestamp: number): string {
 }
 
 export function formatTimeAgo(timestamp: number): string {
+  if (timestamp == null || isNaN(timestamp)) return 'N/A';
   const seconds = Math.floor(Date.now() / 1000 - timestamp);
-  
+
+  if (seconds < 0) return 'just now';
   if (seconds < 60) return `${seconds}s ago`;
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
@@ -51,16 +53,19 @@ export function formatTimeAgo(timestamp: number): string {
 }
 
 export function truncateHash(hash: string, start: number = 6, end: number = 4): string {
+  if (!hash) return 'N/A';
   if (hash.length <= start + end) return hash;
   return `${hash.slice(0, start)}...${hash.slice(-end)}`;
 }
 
 export function truncateAddress(address: string, start: number = 8, end: number = 6): string {
+  if (!address) return 'N/A';
   if (address.length <= start + end) return address;
   return `${address.slice(0, start)}...${address.slice(-end)}`;
 }
 
 export function formatBlockNumber(num: number): string {
+  if (num == null || isNaN(num)) return 'N/A';
   return num.toLocaleString();
 }
 
@@ -80,27 +85,27 @@ export function formatBtc(satoshis: string | number): string {
 
 export function detectSearchType(query: string): { type: SearchType; chain?: ChainType } {
   const cleanQuery = query.trim().toLowerCase();
-  
+
   if (/^0x[a-f0-9]{64}$/i.test(cleanQuery)) {
     return { type: 'transaction', chain: 'ethereum' };
   }
-  
+
   if (/^0x[a-f0-9]{40}$/i.test(cleanQuery)) {
     return { type: 'address', chain: 'ethereum' };
   }
-  
+
   if (/^[a-f0-9]{64}$/i.test(cleanQuery)) {
     return { type: 'transaction', chain: 'bitcoin' };
   }
-  
+
   if (/^(1|3|bc1)[a-zA-Z0-9]{25,42}$/i.test(cleanQuery)) {
     return { type: 'address', chain: 'bitcoin' };
   }
-  
+
   if (/^\d+$/.test(cleanQuery)) {
     return { type: 'block' };
   }
-  
+
   return { type: 'unknown' };
 }
 

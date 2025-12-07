@@ -12,10 +12,10 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { cn, formatBlockNumber, formatTimeAgo, truncateHash, detectSearchType } from '@/lib/utils';
 import type { Block, ChainType } from '@shared/schema';
-import { 
-  Search, 
-  Blocks, 
-  ArrowLeft, 
+import {
+  Search,
+  Blocks,
+  ArrowLeft,
   ArrowRight,
   ExternalLink,
   ChevronLeft,
@@ -41,7 +41,7 @@ export default function ExplorerPage() {
     if (!searchQuery.trim()) return;
 
     const { type } = detectSearchType(searchQuery);
-    
+
     switch (type) {
       case 'block':
         setLocation(`/block/${searchQuery}?chain=${chain}`);
@@ -65,7 +65,7 @@ export default function ExplorerPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
-      
+
       <main className="flex-1 py-6">
         <div className="max-w-[1600px] mx-auto px-4 md:px-6 space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -154,8 +154,8 @@ export default function ExplorerPage() {
                         </thead>
                         <tbody>
                           {blocks.map((block, index) => (
-                            <tr 
-                              key={block.hash}
+                            <tr
+                              key={block.hash || `block-${index}`}
                               className="border-b border-border/30 transition-colors hover:bg-primary/5"
                             >
                               <td className="py-3 pr-4">

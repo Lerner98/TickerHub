@@ -1,4 +1,4 @@
-# CryptoLens Design Guidelines
+# TickerHub Design Guidelines
 
 ## Design Approach
 **System:** Custom "Cyber Matrix" futuristic blockchain aesthetic - drawing inspiration from modern crypto platforms like Etherscan, with a distinctive neon-cyberpunk visual identity that emphasizes data visualization and real-time information.
