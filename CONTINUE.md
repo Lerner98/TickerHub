@@ -2,7 +2,7 @@
 
 > Created: December 8, 2025
 > Branch: `feature/stock-market-expansion`
-> Status: Phase 2 UI Integration COMPLETE
+> Status: Phase 2.5 Testing Infrastructure IN PROGRESS
 
 ---
 
@@ -29,7 +29,150 @@
 
 ---
 
-## Next Steps (Phase 3+)
+## Next Steps
+
+### Phase 2.5: Testing Infrastructure (CURRENT)
+**Goal:** Establish test harness before adding complexity. Prove "Production Ready" claim.
+
+> **Rationale:** Adding Auth/DB without tests creates "Legacy Code" (code without tests).
+> A Senior Developer never adds complex features to an untested codebase.
+
+#### Selected Stack (Researched 2025-12-09)
+| Tool | Purpose | Why |
+|------|---------|-----|
+| **Vitest** | Test runner | Native ESM, Vite integration, 1.5x faster than Jest |
+| **Supertest** | API integration tests | In-memory Express testing (no network port opened) |
+| **MSW** | External API mocking | Intercepts at network layer, reusable across environments |
+| **@testing-library/react** | Component tests | User-behavior focused testing |
+| **@vitest/coverage-v8** | Coverage | Fast native v8 coverage, identical to Istanbul since v3.2.0 |
+
+#### Architecture: Two Test Layers
+
+**1. API Integration Tests (Priority)**
+- Test Express routes via Supertest (in-memory, no actual network)
+- Mock external APIs (CoinGecko, Finnhub) via MSW
+- Validates our "mock-first" architecture actually works
+- Run sequentially (no parallelization for API tests)
+
+**2. React Component Tests (Secondary)**
+- Test key UI components (StockCard, PriceCard)
+- Use React Testing Library
+- Mock API responses via MSW
+
+#### Folder Structure
+```
+tests/
+├── setup/
+│   ├── vitest.setup.ts      # Global test setup (MSW lifecycle)
+│   └── msw/
+│       ├── handlers.ts      # MSW request handlers (CoinGecko, Finnhub)
+│       └── server.ts        # MSW server config
+├── integration/
+│   ├── api/
+│   │   ├── stocks.test.ts   # /api/stocks endpoints
+│   │   ├── prices.test.ts   # /api/prices endpoints
+│   │   └── health.test.ts   # /api/health endpoint
+│   └── helpers/
+│       └── app.ts           # Express app factory for tests
+└── components/
+    ├── StockCard.test.tsx
+    └── PriceCard.test.tsx
+vitest.config.ts             # Vitest configuration
+```
+
+#### Dependencies to Install
+```bash
+npm install -D vitest @vitest/coverage-v8 supertest @types/supertest msw @testing-library/react @testing-library/jest-dom @testing-library/user-event jsdom vite-tsconfig-paths
+```
+
+#### Package.json Scripts
+```json
+{
+  "scripts": {
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui"
+  }
+}
+```
+
+#### Configuration: vitest.config.ts
+```typescript
+import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
+import tsconfigPaths from 'vite-tsconfig-paths';
+
+export default defineConfig({
+  plugins: [react(), tsconfigPaths()],
+  test: {
+    globals: true,
+    environment: 'node', // Default: fast for API tests
+    // Selectively use jsdom for React component tests (needs DOM APIs)
+    environmentMatchGlobs: [
+      ['tests/components/**', 'jsdom'],
+    ],
+    setupFiles: ['./tests/setup/vitest.setup.ts'],
+    include: ['tests/**/*.test.{ts,tsx}'],
+    coverage: {
+      provider: 'v8',
+      include: ['server/**/*.ts', 'client/src/**/*.{ts,tsx}'],
+      exclude: ['**/mocks/**', '**/*.d.ts'],
+      reporter: ['text', 'html', 'json'],
+      thresholds: {
+        statements: 70,
+        branches: 70,
+        functions: 70,
+        lines: 70,
+      },
+    },
+    sequence: { shuffle: false },
+  },
+});
+```
+
+**Note:** `environmentMatchGlobs` ensures API tests run fast in Node.js while component tests get the jsdom environment they need for DOM APIs (`document`, `window`).
+
+#### MSW Setup: tests/setup/vitest.setup.ts
+```typescript
+import { beforeAll, afterEach, afterAll } from 'vitest';
+import { server } from './msw/server';
+
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+```
+
+#### Implementation Steps
+- [ ] Install testing dependencies
+- [ ] Create `vitest.config.ts`
+- [ ] Create `tests/setup/vitest.setup.ts`
+- [ ] Create MSW handlers for CoinGecko & Finnhub
+- [ ] Create Express app factory for tests
+- [ ] Write API integration tests for `/api/stocks`
+- [ ] Write API integration tests for `/api/prices`
+- [ ] Write API integration tests for `/api/health`
+- [ ] Add coverage thresholds (70% minimum)
+- [ ] Add `npm run test:coverage` to CI pipeline
+- [ ] Write component tests for StockCard
+- [ ] Write component tests for PriceCard
+
+#### CI Integration
+Add to `.github/workflows/deploy.yml` before build step:
+```yaml
+- name: Run tests
+  run: npm run test:coverage
+```
+
+#### Sources
+- [Vitest Guide](https://vitest.dev/guide/)
+- [Vitest Coverage](https://vitest.dev/guide/coverage)
+- [MSW Quick Start](https://mswjs.io/docs/quick-start/)
+- [MSW Node.js Integration](https://mswjs.io/docs/integrations/node/)
+- [goldbergyoni/nodejs-testing-best-practices](https://github.com/goldbergyoni/nodejs-testing-best-practices)
+- [Supertest npm](https://www.npmjs.com/package/supertest)
+
+---
 
 ### Phase 3: The Persistence Layer (User State)
 **Goal:** Transition from a public dashboard to a personalized platform.
