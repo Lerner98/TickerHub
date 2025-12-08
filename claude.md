@@ -5,7 +5,7 @@
 **Type:** Unified Market Intelligence Platform
 **Vision:** Aggregate real-time cryptocurrency AND stock market data with AI-powered natural language queries and customizable alerts.
 
-**Current State:** Crypto MVP complete, Stock market Phase 1 (data layer) complete.
+**Current State:** Crypto MVP complete, Stock market Phase 2 (UI integration) complete.
 
 ---
 
@@ -157,11 +157,15 @@ TickerHub/
 - ✅ Circuit breaker pattern
 - ✅ Mock data for development
 
-### Phase 2: UI Integration (NEXT)
-1. Add "Stocks" section to Dashboard
-2. Create StockCard component
-3. Add stock search to Header
-4. Create StocksPage
+### Phase 2: UI Integration (COMPLETE)
+- ✅ StockCard component
+- ✅ StockPage detail view
+- ✅ Dashboard stocks section
+- ✅ Header search with stocks
+- ✅ useStocks hooks
+
+### Phase 3: Persistence Layer (NEXT)
+See `CONTINUE.md` for detailed plan.
 
 ---
 
@@ -199,6 +203,40 @@ Optional longer description.
 2. **Graceful errors** - Users see friendly messages, not raw errors
 3. **Circuit breaker** - Prevents cascade failures
 4. **Modular API structure** - Domain-driven design
+
+---
+
+## Research Before Major Changes (MANDATORY)
+
+> **Before adding new dependencies, changing architecture, or major pivots: RESEARCH FIRST.**
+
+### The Rule
+```
+Major changes require web research to validate:
+- Current library status (deprecated? maintained?)
+- Compatibility with existing stack (ESM/CJS, Express, etc.)
+- Production best practices
+- Security implications
+```
+
+### What Requires Research
+- New authentication systems
+- Database/ORM changes
+- New external service integrations
+- Architecture pattern changes
+- Major dependency additions
+
+### Research Checklist
+1. **Library status** - Is it actively maintained? Deprecated?
+2. **Stack compatibility** - Works with our ESM source + CJS production build?
+3. **Security** - Known vulnerabilities? Best practices documented?
+4. **Migration path** - How do we adopt without breaking existing code?
+
+### Document Decisions
+After research, document the decision in:
+- `CONTINUE.md` - For implementation plans
+- `CHANGELOG/` - For completed changes
+- This file - For permanent rules/patterns
 
 ---
 
