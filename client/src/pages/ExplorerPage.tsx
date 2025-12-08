@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useParams, useLocation, Link } from 'wouter';
-import { useQuery } from '@tanstack/react-query';
-import { Header } from '@/components/Header';
+import { Header } from '@/components/layout';
 import { GlassCard } from '@/components/GlassCard';
 import { ChainIcon } from '@/components/CryptoIcon';
 import { BlockListSkeleton } from '@/components/LoadingState';
@@ -11,7 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { cn, formatBlockNumber, formatTimeAgo, truncateHash, detectSearchType } from '@/lib/utils';
-import type { Block, ChainType } from '@shared/schema';
+import { useBlocks } from '@/features/blockchain';
+import type { ChainType } from '@/services/types';
 import {
   Search,
   Blocks,
@@ -31,10 +31,7 @@ export default function ExplorerPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const limit = 25;
 
-  const { data: blocks, isLoading, error } = useQuery<Block[]>({
-    queryKey: ['/api/blocks', chain, String(limit), String(page)],
-    refetchInterval: 15000,
-  });
+  const { data: blocks, isLoading, error } = useBlocks(chain, limit, page);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();

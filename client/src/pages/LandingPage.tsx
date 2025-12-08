@@ -1,9 +1,9 @@
 import { Link } from 'wouter';
-import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { PriceTicker } from '@/components/PriceTicker';
 import { GlassCard } from '@/components/GlassCard';
 import { cn, formatNumber } from '@/lib/utils';
+import { useStats } from '@/features/crypto';
 import { 
   ArrowRight, 
   Blocks, 
@@ -55,9 +55,7 @@ interface Stats {
 }
 
 export default function LandingPage() {
-  const { data: stats } = useQuery<Stats>({
-    queryKey: ['/api/stats'],
-  });
+  const { data: stats } = useStats();
 
   return (
     <div className="flex flex-col min-h-screen">

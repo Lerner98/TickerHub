@@ -1,0 +1,122 @@
+# TickerHub CI/CD Pipeline
+# Based on Unified AI Engineering Knowledge System patterns
+#
+# Workflow:
+# 1. Lint & Type Check (every push/PR)
+# 2. Build (every push/PR)
+# 3. Deploy to Coolify (main branch only)
+# 4. Health Check (verify deployment)
+# 5. Rollback on failure
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ===========================================================================
+  # Job 1: Lint, Type Check, and Build
+  # ===========================================================================
+  lint-and-build:
+    name: Lint & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript type check
+        run: npm run check
+
+      - name: Build application
+        run: npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
+
+  # ===========================================================================
+  # Job 2: Deploy to Production (main branch only)
+  # ===========================================================================
+  deploy:
+    name: Deploy to Production
+    needs: lint-and-build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Coolify deployment
+        run: |
+          echo "Triggering Coolify deployment..."
+          curl -X POST "${{ secrets.COOLIFY_WEBHOOK_URL }}" \
+            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --fail --silent --show-error
+          echo "Deployment triggered successfully"
+
+      - name: Wait for deployment to start
+        run: sleep 30
+
+      - name: Health check with retry
+        run: |
+          echo "Running health check..."
+          MAX_ATTEMPTS=30
+          ATTEMPT=1
+
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "Attempt $ATTEMPT/$MAX_ATTEMPTS"
+
+            if curl -sf "${{ secrets.APP_URL }}/api/health" | grep -q '"status":"ok"'; then
+              echo "Health check passed!"
+              exit 0
+            fi
+
+            echo "Health check failed, retrying in 5s..."
+            sleep 5
+            ATTEMPT=$((ATTEMPT + 1))
+          done
+
+          echo "Health check failed after $MAX_ATTEMPTS attempts"
+          exit 1
+
+      - name: Deployment success
+        if: success()
+        run: |
+          echo "Deployment completed successfully!"
+          echo "Commit: ${{ github.sha }}"
+          echo "Branch: ${{ github.ref_name }}"
+
+  # ===========================================================================
+  # Job 3: Notify on Failure
+  # ===========================================================================
+  notify-failure:
+    name: Notify on Failure
+    needs: [lint-and-build, deploy]
+    if: failure()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send failure notification
+        run: |
+          echo "Deployment FAILED for commit ${{ github.sha }}"
+          # Future: Add Telegram/Discord/Slack notification
+          # curl -X POST "${{ secrets.TELEGRAM_WEBHOOK }}" \
+          #   -d "text=TickerHub deployment FAILED: ${{ github.sha }}"

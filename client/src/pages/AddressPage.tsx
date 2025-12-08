@@ -1,16 +1,17 @@
 import { useState } from 'react';
 import { useParams, Link } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
-import { Header } from '@/components/Header';
+import { Header } from '@/components/layout';
 import { GlassCard } from '@/components/GlassCard';
 import { ChainIcon } from '@/components/CryptoIcon';
 import { CopyButton } from '@/components/CopyButton';
-import { FullPageLoading, Skeleton, TableRowSkeleton } from '@/components/LoadingState';
+import { FullPageLoading, Skeleton } from '@/components/LoadingState';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn, formatTimestamp, formatEth, formatBtc, truncateHash, formatTimeAgo } from '@/lib/utils';
-import type { Address, Transaction, ChainType } from '@shared/schema';
+import { useAddress } from '@/features/explorer';
+import type { Transaction, ChainType } from '@/services/types';
 import { 
   ArrowLeft, 
   Wallet, 
@@ -29,10 +30,7 @@ export default function AddressPage() {
   const address = params.address || '';
   const [activeTab, setActiveTab] = useState('transactions');
 
-  const { data: addressData, isLoading: isLoadingAddress } = useQuery<Address>({
-    queryKey: ['/api/address', address],
-    enabled: !!address,
-  });
+  const { data: addressData, isLoading: isLoadingAddress } = useAddress(address);
 
   const { data: transactions, isLoading: isLoadingTx } = useQuery<Transaction[]>({
     queryKey: ['/api/address', address, 'transactions'],

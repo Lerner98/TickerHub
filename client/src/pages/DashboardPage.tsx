@@ -1,18 +1,15 @@
-import { useQuery } from '@tanstack/react-query';
-import { Header } from '@/components/Header';
+import { Header } from '@/components/layout';
 import { NetworkStatsGrid } from '@/components/NetworkStats';
 import { PriceChart } from '@/components/PriceChart';
 import { RecentBlocks } from '@/components/RecentBlocks';
 import { MarketTable } from '@/components/MarketTable';
 import { TopCryptoList } from '@/components/PriceCard';
 import { FullPageLoading } from '@/components/LoadingState';
-import type { PriceData } from '@shared/schema';
+import { usePrices } from '@/features/crypto';
+import type { PriceData } from '@/services/types';
 
 export default function DashboardPage() {
-  const { data: prices, isLoading } = useQuery<PriceData[]>({
-    queryKey: ['/api/prices'],
-    refetchInterval: 30000,
-  });
+  const { data: prices, isLoading } = usePrices();
 
   return (
     <div className="min-h-screen flex flex-col">

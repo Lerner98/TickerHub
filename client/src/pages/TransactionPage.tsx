@@ -1,14 +1,12 @@
 import { useParams, Link } from 'wouter';
-import { useQuery } from '@tanstack/react-query';
-import { Header } from '@/components/Header';
+import { Header } from '@/components/layout';
 import { GlassCard } from '@/components/GlassCard';
-import { ChainIcon } from '@/components/CryptoIcon';
 import { CopyButton } from '@/components/CopyButton';
-import { FullPageLoading, Skeleton } from '@/components/LoadingState';
+import { FullPageLoading } from '@/components/LoadingState';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn, formatTimestamp, formatEth, formatBtc, truncateAddress } from '@/lib/utils';
-import type { Transaction } from '@shared/schema';
+import { useTransaction } from '@/features/explorer';
 import { 
   ArrowLeft, 
   ArrowRight, 
@@ -27,10 +25,7 @@ export default function TransactionPage() {
   const params = useParams<{ hash: string }>();
   const hash = params.hash || '';
 
-  const { data: tx, isLoading, error } = useQuery<Transaction>({
-    queryKey: ['/api/tx', hash],
-    enabled: !!hash,
-  });
+  const { data: tx, isLoading, error } = useTransaction(hash);
 
   const getStatusIcon = (status: string) => {
     switch (status) {

@@ -1,12 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
-import { Header } from '@/components/Header';
+import { Header } from '@/components/layout';
 import { GlassCard } from '@/components/GlassCard';
-import { ChainIcon } from '@/components/CryptoIcon';
 import { PriceChart } from '@/components/PriceChart';
 import { NetworkStatsGrid } from '@/components/NetworkStats';
-import { FullPageLoading, Skeleton } from '@/components/LoadingState';
-import { cn, formatNumber, formatPercentage, formatCurrency } from '@/lib/utils';
-import type { PriceData } from '@shared/schema';
+import { FullPageLoading } from '@/components/LoadingState';
+import { formatNumber, formatPercentage, formatCurrency } from '@/lib/utils';
+import { usePrices } from '@/features/crypto';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -19,10 +17,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 
 export default function AnalyticsPage() {
-  const { data: prices, isLoading } = useQuery<PriceData[]>({
-    queryKey: ['/api/prices'],
-    refetchInterval: 30000,
-  });
+  const { data: prices, isLoading } = usePrices();
 
   const gainers = prices?.filter(p => p.priceChangePercentage24h > 0)
     .sort((a, b) => b.priceChangePercentage24h - a.priceChangePercentage24h)

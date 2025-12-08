@@ -1,14 +1,14 @@
 import { useParams, useLocation, Link } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
-import { Header } from '@/components/Header';
+import { Header } from '@/components/layout';
 import { GlassCard } from '@/components/GlassCard';
 import { ChainIcon } from '@/components/CryptoIcon';
 import { CopyButton } from '@/components/CopyButton';
 import { FullPageLoading, Skeleton } from '@/components/LoadingState';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { cn, formatTimestamp, formatBlockNumber, truncateHash, formatTimeAgo } from '@/lib/utils';
-import type { Block, Transaction, ChainType } from '@shared/schema';
+import { useBlock } from '@/features/blockchain';
+import type { Transaction, ChainType } from '@/services/types';
 import { 
   ArrowLeft, 
   ArrowRight,
@@ -32,10 +32,7 @@ export default function BlockPage() {
   const searchParams = new URLSearchParams(location.split('?')[1] || '');
   const chain: ChainType = (searchParams.get('chain') as ChainType) || 'ethereum';
 
-  const { data: block, isLoading: isLoadingBlock } = useQuery<Block>({
-    queryKey: ['/api/block', chain, blockNumber],
-    enabled: !!blockNumber,
-  });
+  const { data: block, isLoading: isLoadingBlock } = useBlock(blockNumber, chain);
 
   const { data: transactions, isLoading: isLoadingTx } = useQuery<Transaction[]>({
     queryKey: ['/api/block', chain, blockNumber, 'transactions'],
