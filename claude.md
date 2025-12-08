@@ -203,6 +203,58 @@ Optional longer description.
 2. **Graceful errors** - Users see friendly messages, not raw errors
 3. **Circuit breaker** - Prevents cascade failures
 4. **Modular API structure** - Domain-driven design
+5. **ESM everywhere** - No legacy CJS, modern standards only
+
+---
+
+## Modern Standards (MANDATORY)
+
+> **Use modern approaches. No legacy patterns. No exceptions.**
+
+### ESM-First Architecture
+```
+This project is 100% ESM (ECMAScript Modules):
+- Source: TypeScript with ESM imports/exports
+- Development: tsx runs ESM natively
+- Production: esbuild outputs ESM (.mjs)
+- Node.js 20+: Full ESM support
+```
+
+### What This Means
+- **NEVER** output CJS format from builds
+- **NEVER** use `require()` in new code
+- **ALWAYS** use `import/export` syntax
+- **ALWAYS** use `.mjs` extension for production bundles
+- `import.meta.url` works everywhere (dev AND production)
+
+### Why ESM
+1. **Modern standard** - CJS is legacy, ESM is the present and future
+2. **Better tooling** - Tree-shaking, static analysis, IDE support
+3. **Library compatibility** - Many modern libraries (Better Auth, etc.) are ESM-only
+4. **No workarounds** - No `process.cwd()` hacks or polyfills needed
+
+### Build Configuration
+```typescript
+// script/build.ts - CORRECT
+await esbuild({
+  format: "esm",           // Modern ESM output
+  outfile: "dist/index.mjs", // .mjs extension
+  // ...
+});
+
+// WRONG - Never do this
+await esbuild({
+  format: "cjs",           // Legacy format
+  outfile: "dist/index.cjs", // Old extension
+});
+```
+
+### Pre-Implementation Check
+Before writing ANY build/bundle code, verify:
+- [ ] Output format is `"esm"`, not `"cjs"`
+- [ ] Output extension is `.mjs`, not `.cjs` or `.js`
+- [ ] No `require()` statements in new code
+- [ ] Using `import.meta.url` (not `__dirname` polyfills)
 
 ---
 
@@ -228,7 +280,7 @@ Major changes require web research to validate:
 
 ### Research Checklist
 1. **Library status** - Is it actively maintained? Deprecated?
-2. **Stack compatibility** - Works with our ESM source + CJS production build?
+2. **Stack compatibility** - Works with our ESM stack?
 3. **Security** - Known vulnerabilities? Best practices documented?
 4. **Migration path** - How do we adopt without breaking existing code?
 

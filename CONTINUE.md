@@ -42,8 +42,8 @@
 | **Auth** | Better Auth | Self-hosted, Express-native, Lucia successor (Lucia deprecated March 2025) |
 
 #### Research Findings
-- **Better Auth:** Requires ESM (`"type": "module"`). CJS not supported.
-  - **Risk:** Our production build outputs CJS. Need to verify compatibility or adjust build.
+- **Better Auth:** Requires ESM (`"type": "module"`).
+  - **Status:** ✅ Compatible. Production build outputs ESM (.mjs) as of 2025-12-09.
   - Source: [Better Auth Express Docs](https://www.better-auth.com/docs/integrations/express)
 - **Drizzle + Neon:** Native `neon-http` driver for serverless.
   - Migrations via `drizzle-kit generate` + `drizzle-kit migrate`
@@ -115,7 +115,7 @@ drizzle.config.ts         # Drizzle Kit configuration
 6. **Frontend:** Auth context, login UI
 
 #### Compatibility Check (BEFORE IMPLEMENTATION)
-- [ ] Verify Better Auth works with CJS production build
+- [x] Verify Better Auth works with ESM production build (RESOLVED 2025-12-09)
 - [ ] Test Neon connection from Docker container
 - [ ] Confirm Drizzle migrations run in CI/CD pipeline
 
