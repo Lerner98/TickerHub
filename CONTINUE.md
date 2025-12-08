@@ -31,25 +31,35 @@
 
 ## Next Steps (Phase 3+)
 
-### Phase 3: Persistence Layer (FOUNDATION)
-**Goal:** Enable user-specific features (watchlists, portfolios, alerts)
+### Phase 3: The Persistence Layer (User State)
+**Goal:** Transition from a public dashboard to a personalized platform.
 
-#### Stack Decision (Researched 2025-12-08)
+#### Selected Stack
 | Component | Choice | Rationale |
 |-----------|--------|-----------|
-| **Database** | Neon | Serverless PostgreSQL, free tier, auto-scaling, PITR backups |
-| **ORM** | Drizzle | Already in project, type-safe, excellent migrations |
-| **Auth** | Better Auth | Self-hosted, Express-native, Lucia successor (Lucia deprecated March 2025) |
+| **Database** | **Neon** | Serverless Postgres. Scales to zero. **Note:** Free tier PITR is ~6 hours. |
+| **ORM** | **Drizzle** | Type-safe. Zero-dependency on runtime. Uses standard SQL migrations. |
+| **Auth** | **Better Auth** | Successor to Lucia. Self-hosted. Works natively with our ESM build. |
 
-#### Research Findings
-- **Better Auth:** Requires ESM (`"type": "module"`).
-  - **Status:** ✅ Compatible. Production build outputs ESM (.mjs) as of 2025-12-09.
-  - Source: [Better Auth Express Docs](https://www.better-auth.com/docs/integrations/express)
-- **Drizzle + Neon:** Native `neon-http` driver for serverless.
-  - Migrations via `drizzle-kit generate` + `drizzle-kit migrate`
-  - Source: [Drizzle Neon Guide](https://orm.drizzle.team/docs/tutorials/drizzle-with-neon)
-- **Lucia Auth:** Deprecated as of March 2025. Better Auth is recommended successor.
-  - Source: [Lucia Discussion #1707](https://github.com/lucia-auth/lucia/discussions/1707)
+#### Technical Constraints & Standards
+
+**1. Dual Connection Strategy (Critical for Neon+Drizzle):**
+We must maintain two environment variables to prevent migration failures:
+```env
+DATABASE_URL=postgresql://...?sslmode=require           # Pooled - for App (port 6543)
+DATABASE_URL_UNPOOLED=postgresql://...?sslmode=require  # Direct - for Drizzle Kit (port 5432)
+```
+- **Pooled connection:** Used by Express app for runtime queries (handles concurrency)
+- **Direct connection:** Used by `drizzle-kit` for migrations (poolers hate schema changes)
+
+**2. Migration Workflow:**
+- Dev: `npm run db:generate` (Create SQL) → `npm run db:migrate` (Apply)
+- **Rule:** No `db:push` in production. Ever.
+
+**3. Backups:**
+- **Constraint:** Neon Free Tier only supports ~6 hours of Point-in-Time Recovery (PITR)
+- **Action:** For major milestones, perform manual `pg_dump` to local storage
+- **Paid tiers:** Launch ($19/mo) = 7 days, Enterprise = 30 days
 
 #### Database Schema (Initial)
 ```typescript
@@ -67,7 +77,14 @@ export const sessions = pgTable('sessions', {
   expiresAt: timestamp('expires_at').notNull(),
 });
 
-export const watchlistItems = pgTable('watchlist_items', {
+export const verifications = pgTable('verifications', {
+  id: text('id').primaryKey(),
+  identifier: text('identifier').notNull(),
+  value: text('value').notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+});
+
+export const watchlists = pgTable('watchlists', {
   id: serial('id').primaryKey(),
   userId: text('user_id').references(() => users.id).notNull(),
   assetId: text('asset_id').notNull(),       // "AAPL" or "bitcoin"
@@ -75,19 +92,6 @@ export const watchlistItems = pgTable('watchlist_items', {
   addedAt: timestamp('added_at').defaultNow(),
 });
 ```
-
-#### Migration Strategy
-- **Tool:** `drizzle-kit` for schema management
-- **Naming:** Timestamped migrations (`20251208_initial_schema.sql`)
-- **Tracking:** `__drizzle_migrations` table
-- **Environments:** Separate Neon branches for dev/staging/prod
-- **Pre-deploy:** Always snapshot before schema changes
-
-#### Database Security & Best Practices
-- **Backups:** Neon PITR (30 days), manual snapshots before migrations
-- **External backups:** GitHub Actions → S3 (for compliance)
-- **Connection:** Use pooled connections in production, direct for migrations
-- **Secrets:** `DATABASE_URL` in environment, never committed
 
 #### Files to Create
 ```
@@ -107,17 +111,13 @@ drizzle.config.ts         # Drizzle Kit configuration
 ```
 
 #### Implementation Steps
-1. **Infrastructure:** Create Neon project, get `DATABASE_URL`
-2. **Drizzle setup:** `drizzle.config.ts`, schema file
-3. **Run migration:** `drizzle-kit generate` + `drizzle-kit migrate`
-4. **Better Auth:** Mount on `/api/auth/*`, configure session storage
-5. **Protected routes:** Middleware for `/api/watchlist/*`
-6. **Frontend:** Auth context, login UI
-
-#### Compatibility Check (BEFORE IMPLEMENTATION)
-- [x] Verify Better Auth works with ESM production build (RESOLVED 2025-12-09)
-- [ ] Test Neon connection from Docker container
-- [ ] Confirm Drizzle migrations run in CI/CD pipeline
+- [x] **Pre-requisite:** Convert backend build to ESM (Completed 2025-12-09)
+- [ ] **Infra:** Provision Neon project & get keys (Pooled + Direct)
+- [ ] **Schema:** Define `users`, `sessions`, `verifications`, `watchlists`
+- [ ] **Auth:** Mount Better Auth middleware
+- [ ] **API:** Create CRUD endpoints for Watchlist
+- [ ] **Test:** Neon connection from Docker container
+- [ ] **CI/CD:** Confirm Drizzle migrations run in pipeline
 
 ---
 
