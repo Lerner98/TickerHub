@@ -29,11 +29,12 @@ const router = Router();
  * - /api/stats           - Platform stats
  * - /api/health          - Health check
  *
- * Stock Routes (Prepared for expansion):
- * - /api/stocks/quote/:symbol   - Stock quote
- * - /api/stocks/profile/:symbol - Company profile
- * - /api/stocks/search          - Symbol search
- * - /api/stocks/candles/:symbol - Historical data
+ * Stock Routes:
+ * - /api/stocks          - Top 10 stocks
+ * - /api/stocks/:symbol  - Single stock details
+ * - /api/stocks/search   - Search stocks
+ * - /api/stocks/batch    - Multiple stocks by symbols
+ * - /api/stocks/status   - Service health status
  */
 
 // Mount all route modules

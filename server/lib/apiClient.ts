@@ -25,6 +25,8 @@ const ALLOWED_HOSTS = new Set([
   'blockchain.info',
   'finnhub.io', // Future: Stock market integration
   'api.finnhub.io',
+  'api.groq.com', // AI: Free tier fallback (30 RPM)
+  'generativelanguage.googleapis.com', // AI: Gemini primary (15 RPM)
 ]);
 
 /**
