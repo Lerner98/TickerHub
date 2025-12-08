@@ -4,17 +4,22 @@
  * Provides mock data for development and testing.
  * Zero external API calls in development by default (API_TESTING_STRATEGY.md).
  *
+ * IMPORTANT: This module is ONLY used in development/test.
+ * In production, shouldUseMock() returns false and mock functions are never called.
+ *
  * @module server/mocks
  */
 
 import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 import type { FinnhubQuote, FinnhubProfile } from '../../shared/schema';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const MOCKS_DIR = __dirname;
+// Mock data directory - relative to project root
+// In dev (ESM), we use process.cwd() which points to project root
+// In prod (CJS), this is never called because shouldUseMock() returns false
+function getMocksDir(): string {
+  return join(process.cwd(), 'server', 'mocks');
+}
 
 /**
  * Check if mock data should be used
@@ -46,8 +51,8 @@ export function shouldUseMock(): boolean {
  * @returns Parsed JSON data
  */
 export function loadMock<T>(provider: string, filename: string): T {
-  const path = join(MOCKS_DIR, provider, filename);
-  const content = readFileSync(path, 'utf-8');
+  const mockPath = join(getMocksDir(), provider, filename);
+  const content = readFileSync(mockPath, 'utf-8');
   return JSON.parse(content);
 }
 
