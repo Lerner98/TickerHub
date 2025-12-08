@@ -12,6 +12,7 @@ import TransactionPage from "@/pages/TransactionPage";
 import AddressPage from "@/pages/AddressPage";
 import BlockPage from "@/pages/BlockPage";
 import AnalyticsPage from "@/pages/AnalyticsPage";
+import StockPage from "@/pages/StockPage";
 
 function Router() {
   return (
@@ -24,6 +25,7 @@ function Router() {
       <Route path="/address/:address" component={AddressPage} />
       <Route path="/block/:number" component={BlockPage} />
       <Route path="/analytics" component={AnalyticsPage} />
+      <Route path="/stocks/:symbol" component={StockPage} />
       <Route component={NotFound} />
     </Switch>
   );

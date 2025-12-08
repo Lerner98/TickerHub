@@ -271,3 +271,45 @@ npm run test       # All mocked
 | **Combined** | ~45 RPM |
 
 SSRF Allowlist: `generativelanguage.googleapis.com`, `api.groq.com`
+
+---
+
+## Development Environment Quirks
+
+### VSCode Format-on-Save Conflicts
+**Problem:** VSCode auto-formats files on save, causing "file unexpectedly modified" errors when making sequential edits.
+
+**Impact:** When Claude makes an edit, VSCode immediately reformats -> second edit fails because file hash changed.
+
+**Solutions:**
+1. **Make complete edits in one shot** - Combine related changes into single edit
+2. **Read fresh before each edit** - If file was just modified, re-read it
+3. **Expect reformatting** - The linter's changes are intentional, incorporate them
+
+**Key Insight:** File modifications from VSCode/linters are INTENTIONAL. Don't fight them - work with the formatted result.
+
+### ESM Module Compatibility
+**Problem:** `__dirname` and `__filename` are not available in ES modules.
+
+**Solution:** Add this at top of affected files:
+```typescript
+import { fileURLToPath } from 'url';
+import path from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+```
+
+### Background Processes
+**Note:** Multiple dev server instances can accumulate. Kill stale processes:
+```powershell
+Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force
+```
+
+---
+
+## Core Knowledge Files
+
+Additional development guidance is in `docs/core-knowledge/`:
+- `DEVELOPMENT_EFFICIENCY.md` - Token/cost optimization strategies
+- `CONTEXT_MANAGEMENT.md` - Context and session continuity

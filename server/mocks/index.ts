@@ -8,9 +8,12 @@
  */
 
 import { readFileSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import type { FinnhubQuote, FinnhubProfile } from '../../shared/schema';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 const MOCKS_DIR = __dirname;
 
 /**

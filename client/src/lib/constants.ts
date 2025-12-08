@@ -18,6 +18,12 @@ export const API_ENDPOINTS = {
   TRANSACTION: '/api/tx',
   ADDRESS: '/api/address',
 
+  // Stock endpoints
+  STOCKS: '/api/stocks',
+  STOCKS_SEARCH: '/api/stocks/search',
+  STOCKS_BATCH: '/api/stocks/batch',
+  STOCKS_STATUS: '/api/stocks/status',
+
   // System endpoints
   HEALTH: '/api/health',
 } as const;
@@ -26,6 +32,7 @@ export const CACHE_CONFIG = {
   PRICES_REFETCH_INTERVAL: 30_000,      // 30 seconds
   NETWORK_REFETCH_INTERVAL: 15_000,     // 15 seconds
   BLOCKS_REFETCH_INTERVAL: 10_000,      // 10 seconds
+  STOCKS_REFETCH_INTERVAL: 60_000,      // 60 seconds
   STALE_TIME: 60_000,                   // 1 minute
 } as const;
 

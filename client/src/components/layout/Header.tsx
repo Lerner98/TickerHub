@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'wouter';
-import { Search, Menu, X, Activity, Layers, BarChart3 } from 'lucide-react';
+import { Search, Menu, X, Activity, Layers, BarChart3, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn, detectSearchType } from '@/lib/utils';
+import { useStockSearch } from '@/features/stocks';
 
 const navLinks = [
   { href: '/dashboard', label: 'Dashboard', icon: Activity },
@@ -16,6 +17,21 @@ export function Header() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  const { data: stockResults = [] } = useStockSearch(searchQuery);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +53,16 @@ export function Header() {
         setLocation(`/search?q=${encodeURIComponent(searchQuery)}`);
     }
     setSearchQuery('');
+    setShowDropdown(false);
   };
+
+  const handleStockSelect = (symbol: string) => {
+    setLocation(`/stocks/${symbol}`);
+    setSearchQuery('');
+    setShowDropdown(false);
+  };
+
+  const hasResults = stockResults.length > 0;
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/50 backdrop-blur-md bg-background/80">
@@ -81,17 +106,26 @@ export function Header() {
           </div>
 
           <form onSubmit={handleSearch} className="flex-1 max-w-xl hidden sm:block">
-            <div className={cn(
-              "relative transition-all duration-300",
-              isSearchFocused && "scale-[1.02]"
-            )}>
+            <div
+              ref={searchRef}
+              className={cn(
+                "relative transition-all duration-300",
+                isSearchFocused && "scale-[1.02]"
+              )}
+            >
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 type="search"
-                placeholder="Search by address, tx hash, or block number..."
+                placeholder="Search stocks, addresses, tx hash..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => setIsSearchFocused(true)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setShowDropdown(e.target.value.length > 0);
+                }}
+                onFocus={() => {
+                  setIsSearchFocused(true);
+                  if (searchQuery.length > 0) setShowDropdown(true);
+                }}
                 onBlur={() => setIsSearchFocused(false)}
                 className={cn(
                   "pl-10 pr-4 bg-card/60 border-border/50 placeholder:text-muted-foreground/60",
@@ -102,6 +136,33 @@ export function Header() {
               />
               {isSearchFocused && (
                 <div className="absolute inset-0 -z-10 rounded-md bg-primary/10 blur-md" />
+              )}
+
+              {/* Search Results Dropdown */}
+              {showDropdown && hasResults && (
+                <div className="absolute top-full left-0 right-0 mt-2 bg-card/95 backdrop-blur-md border border-border/50 rounded-lg shadow-lg overflow-hidden z-50">
+                  <div className="p-2">
+                    <div className="text-xs font-medium text-muted-foreground px-2 py-1">
+                      Stocks
+                    </div>
+                    {stockResults.slice(0, 5).map((result) => (
+                      <button
+                        key={result.id}
+                        type="button"
+                        onClick={() => handleStockSelect(result.symbol)}
+                        className="w-full flex items-center gap-3 px-2 py-2 rounded-md hover:bg-primary/10 transition-colors text-left"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                          <Building2 className="w-4 h-4 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm truncate">{result.name}</div>
+                          <div className="text-xs text-muted-foreground">{result.symbol} • {result.exchange}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           </form>

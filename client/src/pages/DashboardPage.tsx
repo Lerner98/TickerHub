@@ -4,12 +4,16 @@ import { PriceChart } from '@/components/PriceChart';
 import { RecentBlocks } from '@/components/RecentBlocks';
 import { MarketTable } from '@/components/MarketTable';
 import { TopCryptoList } from '@/components/PriceCard';
+import { TopStocksList } from '@/components/StockCard';
 import { FullPageLoading } from '@/components/LoadingState';
 import { usePrices } from '@/features/crypto';
-import type { PriceData } from '@/services/types';
+import { useStocks } from '@/features/stocks';
 
 export default function DashboardPage() {
-  const { data: prices, isLoading } = usePrices();
+  const { data: prices, isLoading: pricesLoading } = usePrices();
+  const { data: stocks, isLoading: stocksLoading } = useStocks();
+
+  const isLoading = pricesLoading;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -34,6 +38,13 @@ export default function DashboardPage() {
                 <section>
                   <h2 className="text-lg font-semibold mb-4">Top Cryptocurrencies</h2>
                   <TopCryptoList coins={prices} />
+                </section>
+              )}
+
+              {stocks && stocks.length > 0 && (
+                <section>
+                  <h2 className="text-lg font-semibold mb-4">Top Stocks</h2>
+                  <TopStocksList stocks={stocks} />
                 </section>
               )}
 

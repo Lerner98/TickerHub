@@ -48,41 +48,46 @@ const TOP_STOCK_SYMBOLS = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVD
 // These are lazy-loaded ONLY when shouldUseMock() is true
 let mockQuotes: Record<string, FinnhubQuote> | null = null;
 let mockProfiles: Record<string, FinnhubProfile> | null = null;
+let mockDataLoading: Promise<void> | null = null;
 
-function loadMockData(): void {
+async function loadMockData(): Promise<void> {
   if (mockQuotes !== null) return; // Already loaded
+  if (mockDataLoading) return mockDataLoading; // Loading in progress
 
-  // Only import mock data in non-production
-  // This ensures mock files are never bundled/loaded in production
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    mockQuotes = require('../../mocks/finnhub/quotes.json');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    mockProfiles = require('../../mocks/finnhub/profiles.json');
-  } catch {
-    mockQuotes = {};
-    mockProfiles = {};
-  }
+  mockDataLoading = (async () => {
+    try {
+      const { loadMock } = await import('../../mocks/index.js');
+      mockQuotes = loadMock<Record<string, FinnhubQuote>>('finnhub', 'quotes.json');
+      mockProfiles = loadMock<Record<string, FinnhubProfile>>('finnhub', 'profiles.json');
+      log(`Loaded mock data: ${Object.keys(mockQuotes).length} quotes`, 'stocks', 'debug');
+    } catch (error) {
+      log(`Failed to load mock data: ${error}`, 'stocks', 'warn');
+      mockQuotes = {};
+      mockProfiles = {};
+    }
+  })();
+
+  return mockDataLoading;
 }
 
-function getMockQuote(symbol: string): FinnhubQuote | null {
+async function getMockQuote(symbol: string): Promise<FinnhubQuote | null> {
   if (!shouldUseMock()) return null;
-  loadMockData();
+  await loadMockData();
   const quote = mockQuotes?.[symbol.toUpperCase()];
   if (!quote) return null;
   // Update timestamp to look fresh
   return { ...quote, t: Math.floor(Date.now() / 1000) };
 }
 
-function getMockProfile(symbol: string): FinnhubProfile | null {
+async function getMockProfile(symbol: string): Promise<FinnhubProfile | null> {
   if (!shouldUseMock()) return null;
-  loadMockData();
+  await loadMockData();
   return mockProfiles?.[symbol.toUpperCase()] || null;
 }
 
-function getMockSymbols(): string[] {
+async function getMockSymbols(): Promise<string[]> {
   if (!shouldUseMock()) return [];
-  loadMockData();
+  await loadMockData();
   return Object.keys(mockQuotes || {});
 }
 
@@ -159,7 +164,7 @@ export async function fetchStockQuote(symbol: string): Promise<FinnhubQuote | nu
   // Development/Test: Use mock data only
   if (shouldUseMock()) {
     log(`Stock quote MOCK: ${upperSymbol}`, 'stocks', 'debug');
-    const mock = getMockQuote(upperSymbol);
+    const mock = await getMockQuote(upperSymbol);
     if (mock) {
       cache.set(cacheKey, mock);
     }
@@ -218,7 +223,7 @@ export async function fetchStockProfile(symbol: string): Promise<FinnhubProfile 
 
   // Development/Test: Use mock data only
   if (shouldUseMock()) {
-    const mock = getMockProfile(upperSymbol);
+    const mock = await getMockProfile(upperSymbol);
     if (mock) {
       cache.set(cacheKey, mock);
     }
@@ -277,7 +282,7 @@ export async function getStockAssets(symbols: string[]): Promise<StockAsset[]> {
  * Get top/popular stocks
  */
 export async function getTopStocks(): Promise<StockAsset[]> {
-  const symbols = shouldUseMock() ? getMockSymbols() : TOP_STOCK_SYMBOLS;
+  const symbols = shouldUseMock() ? await getMockSymbols() : TOP_STOCK_SYMBOLS;
   return getStockAssets(symbols);
 }
 
@@ -292,13 +297,13 @@ export async function searchStocks(query: string): Promise<AssetSearchResult[]> 
 
   // In production, we'd need paid Finnhub tier for search
   // For now, search against known symbols
-  const symbols = shouldUseMock() ? getMockSymbols() : TOP_STOCK_SYMBOLS;
+  const symbols = shouldUseMock() ? await getMockSymbols() : TOP_STOCK_SYMBOLS;
 
   const results: AssetSearchResult[] = [];
 
   for (const symbol of symbols) {
     if (symbol.includes(upperQuery)) {
-      const profile = shouldUseMock() ? getMockProfile(symbol) : null;
+      const profile = shouldUseMock() ? await getMockProfile(symbol) : null;
       results.push({
         id: symbol,
         type: 'stock',
