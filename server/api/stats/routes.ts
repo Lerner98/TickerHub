@@ -97,15 +97,15 @@ router.get('/health', asyncHandler(async (_req, res) => {
   const startTime = Date.now();
 
   // Check external services in parallel
-  const [coingeckoHealth, etherscanHealth, blockchainHealth] = await Promise.all([
+  const [coingeckoHealth, blockchairHealth, blockchainHealth] = await Promise.all([
     checkService(`${API_URLS.COINGECKO}/ping`),
-    checkService(`${API_URLS.ETHERSCAN}?module=proxy&action=eth_blockNumber`),
+    checkService(`${API_URLS.BLOCKCHAIR}/ethereum/stats`),
     checkService(`${API_URLS.BLOCKCHAIN}/latestblock`),
   ]);
 
   const services = {
     coingecko: coingeckoHealth,
-    etherscan: etherscanHealth,
+    blockchair: blockchairHealth,
     blockchain: blockchainHealth,
   };
 

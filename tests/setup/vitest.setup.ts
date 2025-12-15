@@ -2,9 +2,13 @@
  * Vitest Global Setup
  *
  * Configures the test environment before tests run.
+ * - Loads environment variables from .env
  * - Sets up MSW server lifecycle
  * - Adds testing-library matchers for component tests
  */
+
+// Load environment variables FIRST (before any other imports that need them)
+import 'dotenv/config';
 
 import { beforeAll, afterEach, afterAll } from 'vitest';
 import { server } from './msw/server';
@@ -26,6 +30,12 @@ beforeAll(() => {
       // Allow local requests (Supertest creates in-memory server on 127.0.0.1)
       if (url.hostname === '127.0.0.1' || url.hostname === 'localhost') {
         return; // Bypass without warning
+      }
+
+      // Allow Neon PostgreSQL database connections (WebSocket/HTTP)
+      // Neon uses *.neon.tech for all connections
+      if (url.hostname.includes('neon.tech')) {
+        return; // Bypass database connections
       }
 
       // Error on unhandled external requests

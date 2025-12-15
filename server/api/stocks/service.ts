@@ -1,274 +1,278 @@
 /**
  * Stock Market Service
  *
- * Provides stock data via Finnhub API with:
- * - Circuit breaker pattern (ADR-008)
- * - Development: Mock data (zero API calls)
- * - Production: Real API → Stale Cache → null (graceful error)
+ * Dual-provider architecture for stock data:
+ * 1. Primary: Twelve Data API ($29/mo paid - best coverage, 800+ calls/day free)
+ * 2. Fallback: Finnhub API (free tier - 60 calls/min)
+ * 3. Graceful degradation: Returns null if both fail (UI shows N/A)
  *
- * IMPORTANT: Mock data is ONLY used in development/test.
- * Production NEVER falls back to mock - it returns null/error instead.
+ * Environment Variables:
+ * - TWELVE_DATA_API_KEY: Primary provider (optional, enables best data)
+ * - FINNHUB_API_KEY: Fallback provider (optional, free tier available)
+ *
+ * If no API keys configured: Returns null, UI shows "Data unavailable"
  *
  * @module server/api/stocks/service
  */
 
-import { fetchJson } from '../../lib/apiClient';
+import { fetchWithTimeout, safeFetch } from '../../lib/apiClient';
 import { cache } from '../../lib/cache';
-import { finnhubBreaker, CircuitOpenError } from '../../lib/circuitBreaker';
 import { log, logError } from '../../lib/logger';
-import { shouldUseMock } from '../../mocks';
-import type {
-  StockAsset,
-  FinnhubQuote,
-  FinnhubProfile,
-  AssetSearchResult,
-} from '../../../shared/schema';
+import { API_URLS, CACHE_TTL } from '../../lib/constants';
+import type { StockAsset, AssetSearchResult } from '../../../shared/schema';
 
 // =============================================================================
 // CONFIGURATION
 // =============================================================================
 
-const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY || '';
-const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1';
+const TWELVE_DATA_API_KEY = process.env.TWELVE_DATA_API_KEY || '';
+// Support various env var naming conventions
+const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY || process.env.finnhub_API_key || process.env.finnhub_API_ke || '';
 
-// Cache TTLs
-const CACHE_TTL = {
-  QUOTE: 60_000,        // 1 minute (real-time-ish)
-  PROFILE: 86_400_000,  // 24 hours (rarely changes)
-  STALE_MAX: 300_000,   // 5 minutes (max stale data age)
-};
+// Provider availability flags
+const hasTwelveData = TWELVE_DATA_API_KEY.length > 0;
+const hasFinnhub = FINNHUB_API_KEY.length > 0;
+const hasAnyProvider = hasTwelveData || hasFinnhub;
 
-// Top stock symbols for production
-const TOP_STOCK_SYMBOLS = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'JPM', 'V', 'JNJ'];
-
-// =============================================================================
-// MOCK DATA (Development Only - Never loaded in production)
-// =============================================================================
-
-// These are lazy-loaded ONLY when shouldUseMock() is true
-let mockQuotes: Record<string, FinnhubQuote> | null = null;
-let mockProfiles: Record<string, FinnhubProfile> | null = null;
-let mockDataLoading: Promise<void> | null = null;
-
-async function loadMockData(): Promise<void> {
-  if (mockQuotes !== null) return; // Already loaded
-  if (mockDataLoading) return mockDataLoading; // Loading in progress
-
-  mockDataLoading = (async () => {
-    try {
-      const { loadMock } = await import('../../mocks/index.js');
-      mockQuotes = loadMock<Record<string, FinnhubQuote>>('finnhub', 'quotes.json');
-      mockProfiles = loadMock<Record<string, FinnhubProfile>>('finnhub', 'profiles.json');
-      log(`Loaded mock data: ${Object.keys(mockQuotes).length} quotes`, 'stocks', 'debug');
-    } catch (error) {
-      log(`Failed to load mock data: ${error}`, 'stocks', 'warn');
-      mockQuotes = {};
-      mockProfiles = {};
-    }
-  })();
-
-  return mockDataLoading;
-}
-
-async function getMockQuote(symbol: string): Promise<FinnhubQuote | null> {
-  if (!shouldUseMock()) return null;
-  await loadMockData();
-  const quote = mockQuotes?.[symbol.toUpperCase()];
-  if (!quote) return null;
-  // Update timestamp to look fresh
-  return { ...quote, t: Math.floor(Date.now() / 1000) };
-}
-
-async function getMockProfile(symbol: string): Promise<FinnhubProfile | null> {
-  if (!shouldUseMock()) return null;
-  await loadMockData();
-  return mockProfiles?.[symbol.toUpperCase()] || null;
-}
-
-async function getMockSymbols(): Promise<string[]> {
-  if (!shouldUseMock()) return [];
-  await loadMockData();
-  return Object.keys(mockQuotes || {});
+// Log configuration on startup
+if (!hasAnyProvider) {
+  log('No stock API keys configured. Stock data will show as N/A.', 'stocks', 'warn');
+  log('Add TWELVE_DATA_API_KEY or FINNHUB_API_KEY to .env for real data.', 'stocks', 'warn');
+} else {
+  log(`Stock providers: ${hasTwelveData ? 'Twelve Data (primary)' : ''} ${hasFinnhub ? 'Finnhub (fallback)' : ''}`.trim(), 'stocks', 'info');
 }
 
 // =============================================================================
-// INTERNAL HELPERS
+// TYPE DEFINITIONS
 // =============================================================================
 
-/**
- * Build Finnhub API URL with authentication
- */
-function buildUrl(endpoint: string, params: Record<string, string> = {}): string {
-  const url = new URL(`${FINNHUB_BASE_URL}${endpoint}`);
-  url.searchParams.set('token', FINNHUB_API_KEY);
-
-  for (const [key, value] of Object.entries(params)) {
-    url.searchParams.set(key, value);
-  }
-
-  return url.toString();
+interface TwelveDataQuote {
+  symbol: string;
+  name: string;
+  exchange: string;
+  currency: string;
+  datetime: string;
+  timestamp: number;
+  open: string;
+  high: string;
+  low: string;
+  close: string;
+  volume: string;
+  previous_close: string;
+  change: string;
+  percent_change: string;
+  is_market_open: boolean;
 }
 
-/**
- * Transform Finnhub quote + profile into StockAsset
- */
-function transformToStockAsset(
-  symbol: string,
-  quote: FinnhubQuote,
-  profile: FinnhubProfile | null
-): StockAsset {
-  return {
-    id: symbol.toUpperCase(),
-    type: 'stock',
-    symbol: symbol.toUpperCase(),
-    name: profile?.name || symbol.toUpperCase(),
-    price: quote.c,
-    change24h: quote.d,
-    changePercent24h: quote.dp,
-    volume24h: 0, // Finnhub quote doesn't include volume
-    high24h: quote.h,
-    low24h: quote.l,
-    lastUpdated: quote.t * 1000, // Convert to milliseconds
-    exchange: profile?.exchange || 'UNKNOWN',
-    currency: profile?.currency || 'USD',
-    marketCap: profile?.marketCapitalization ? profile.marketCapitalization * 1_000_000 : undefined,
-    sector: profile?.finnhubIndustry,
-    industry: profile?.finnhubIndustry,
-    country: profile?.country,
-    previousClose: quote.pc,
-    open: quote.o,
+interface FinnhubQuote {
+  c: number;  // Current price
+  d: number;  // Change
+  dp: number; // Percent change
+  h: number;  // High
+  l: number;  // Low
+  o: number;  // Open
+  pc: number; // Previous close
+  t: number;  // Timestamp
+}
+
+interface FinnhubProfile {
+  name: string;
+  exchange: string;
+  currency: string;
+  finnhubIndustry: string;
+  country: string;
+  marketCapitalization: number;
+}
+
+interface FinnhubCandle {
+  c: number[];  // Close prices
+  h: number[];  // High prices
+  l: number[];  // Low prices
+  o: number[];  // Open prices
+  t: number[];  // Timestamps (Unix)
+  v: number[];  // Volumes
+  s: string;    // Status: "ok" or "no_data"
+}
+
+interface TwelveDataTimeSeries {
+  meta: {
+    symbol: string;
+    interval: string;
+    currency: string;
+    exchange: string;
   };
+  values: Array<{
+    datetime: string;
+    open: string;
+    high: string;
+    low: string;
+    close: string;
+    volume: string;
+  }>;
+  status?: string;
 }
 
+export interface ChartDataPoint {
+  timestamp: number;
+  price: number;
+  open?: number;
+  high?: number;
+  low?: number;
+  volume?: number;
+}
+
+export type ChartTimeframe = '1D' | '7D' | '30D' | '1Y';
+
 // =============================================================================
-// PUBLIC API
+// TWELVE DATA PROVIDER (Primary - $29/mo for premium, 800 calls/day free)
 // =============================================================================
 
-/**
- * Fetch stock quote
- *
- * Development: Returns mock data (zero API calls)
- * Production: Real API → Stale Cache → null
- */
-export async function fetchStockQuote(symbol: string): Promise<FinnhubQuote | null> {
-  const upperSymbol = symbol.toUpperCase();
-  const cacheKey = `finnhub-quote-${upperSymbol}`;
+async function fetchFromTwelveData(symbol: string): Promise<StockAsset | null> {
+  if (!hasTwelveData) return null;
 
-  // Check cache first (always, regardless of mode)
-  const cached = cache.get<FinnhubQuote>(cacheKey, CACHE_TTL.QUOTE);
-  if (cached) {
-    log(`Stock quote cache HIT: ${upperSymbol}`, 'stocks', 'debug');
-    return cached;
-  }
-
-  // Development/Test: Use mock data only
-  if (shouldUseMock()) {
-    log(`Stock quote MOCK: ${upperSymbol}`, 'stocks', 'debug');
-    const mock = await getMockQuote(upperSymbol);
-    if (mock) {
-      cache.set(cacheKey, mock);
-    }
-    return mock;
-  }
-
-  // Production: Fetch from Finnhub with circuit breaker
   try {
-    const quote = await finnhubBreaker.execute(async () => {
-      const url = buildUrl('/quote', { symbol: upperSymbol });
-      return fetchJson<FinnhubQuote>(url);
-    });
+    const url = `${API_URLS.TWELVE_DATA}/quote?symbol=${symbol}&apikey=${TWELVE_DATA_API_KEY}`;
+    const response = await fetchWithTimeout(url);
 
-    // Validate response (Finnhub returns { c: 0, d: null, ... } for invalid symbols)
-    if (quote.c === 0 && quote.d === null) {
-      log(`Invalid symbol: ${upperSymbol}`, 'stocks', 'warn');
+    if (!response.ok) {
+      log(`Twelve Data error: ${response.status}`, 'stocks', 'warn');
       return null;
     }
 
-    cache.set(cacheKey, quote);
-    return quote;
-  } catch (error) {
-    // Try stale cache (up to 5 minutes old) - production fallback
-    const staleCache = cache.get<FinnhubQuote>(cacheKey, CACHE_TTL.STALE_MAX);
-    if (staleCache) {
-      log(`Stock quote STALE cache: ${upperSymbol}`, 'stocks', 'warn');
-      return staleCache;
-    }
+    const data: TwelveDataQuote = await response.json();
 
-    // Production: Log error and return null (NO mock fallback)
-    if (error instanceof CircuitOpenError) {
-      log(`Circuit open for Finnhub: ${upperSymbol}`, 'stocks', 'error');
-    } else {
-      logError(error as Error, `Failed to fetch stock quote: ${upperSymbol}`);
-    }
-
-    return null; // Graceful failure - let UI handle missing data
-  }
-}
-
-/**
- * Fetch stock profile
- *
- * Development: Returns mock data
- * Production: Real API → Cache → null
- */
-export async function fetchStockProfile(symbol: string): Promise<FinnhubProfile | null> {
-  const upperSymbol = symbol.toUpperCase();
-  const cacheKey = `finnhub-profile-${upperSymbol}`;
-
-  // Check cache first
-  const cached = cache.get<FinnhubProfile>(cacheKey, CACHE_TTL.PROFILE);
-  if (cached) {
-    return cached;
-  }
-
-  // Development/Test: Use mock data only
-  if (shouldUseMock()) {
-    const mock = await getMockProfile(upperSymbol);
-    if (mock) {
-      cache.set(cacheKey, mock);
-    }
-    return mock;
-  }
-
-  // Production: Fetch from Finnhub with circuit breaker
-  try {
-    const profile = await finnhubBreaker.execute(async () => {
-      const url = buildUrl('/stock/profile2', { symbol: upperSymbol });
-      return fetchJson<FinnhubProfile>(url);
-    });
-
-    // Validate response
-    if (!profile.name) {
+    // Check for API error response
+    if ('code' in data || !data.close) {
+      log(`Twelve Data invalid response for ${symbol}`, 'stocks', 'debug');
       return null;
     }
 
-    cache.set(cacheKey, profile);
-    return profile;
+    return {
+      id: symbol.toUpperCase(),
+      type: 'stock',
+      symbol: symbol.toUpperCase(),
+      name: data.name || symbol,
+      price: parseFloat(data.close),
+      change24h: parseFloat(data.change),
+      changePercent24h: parseFloat(data.percent_change),
+      volume24h: parseInt(data.volume) || 0,
+      high24h: parseFloat(data.high),
+      low24h: parseFloat(data.low),
+      lastUpdated: data.timestamp * 1000,
+      exchange: data.exchange,
+      currency: data.currency,
+      previousClose: parseFloat(data.previous_close),
+      open: parseFloat(data.open),
+    };
   } catch (error) {
-    // Production: Log and return null (NO mock fallback)
-    logError(error as Error, `Failed to fetch stock profile: ${upperSymbol}`);
+    logError(error as Error, `Twelve Data fetch failed: ${symbol}`);
     return null;
   }
 }
 
+// =============================================================================
+// FINNHUB PROVIDER (Fallback - 60 calls/min free)
+// =============================================================================
+
+async function fetchFromFinnhub(symbol: string): Promise<StockAsset | null> {
+  if (!hasFinnhub) return null;
+
+  try {
+    // Fetch quote and profile in parallel
+    const [quoteResponse, profileResponse] = await Promise.all([
+      fetchWithTimeout(`${API_URLS.FINNHUB}/quote?symbol=${symbol}&token=${FINNHUB_API_KEY}`),
+      fetchWithTimeout(`${API_URLS.FINNHUB}/stock/profile2?symbol=${symbol}&token=${FINNHUB_API_KEY}`),
+    ]);
+
+    if (!quoteResponse.ok) {
+      log(`Finnhub quote error: ${quoteResponse.status}`, 'stocks', 'warn');
+      return null;
+    }
+
+    const quote: FinnhubQuote = await quoteResponse.json();
+    const profile: FinnhubProfile | null = profileResponse.ok ? await profileResponse.json() : null;
+
+    // Validate quote (Finnhub returns zeros for invalid symbols)
+    if (quote.c === 0 && quote.d === null) {
+      log(`Finnhub invalid symbol: ${symbol}`, 'stocks', 'debug');
+      return null;
+    }
+
+    return {
+      id: symbol.toUpperCase(),
+      type: 'stock',
+      symbol: symbol.toUpperCase(),
+      name: profile?.name || symbol,
+      price: quote.c,
+      change24h: quote.d,
+      changePercent24h: quote.dp,
+      volume24h: 0, // Finnhub quote doesn't include volume
+      high24h: quote.h,
+      low24h: quote.l,
+      lastUpdated: quote.t * 1000,
+      exchange: profile?.exchange || 'US',
+      currency: profile?.currency || 'USD',
+      marketCap: profile?.marketCapitalization ? profile.marketCapitalization * 1_000_000 : undefined,
+      sector: profile?.finnhubIndustry,
+      previousClose: quote.pc,
+      open: quote.o,
+    };
+  } catch (error) {
+    logError(error as Error, `Finnhub fetch failed: ${symbol}`);
+    return null;
+  }
+}
+
+// =============================================================================
+// PUBLIC API - Dual Provider with Fallback
+// =============================================================================
+
 /**
- * Get full stock asset data (quote + profile combined)
+ * Get stock asset data with dual-provider fallback
+ *
+ * Priority:
+ * 1. Cache (30 second TTL)
+ * 2. Twelve Data API (primary)
+ * 3. Finnhub API (fallback)
+ * 4. null (UI shows N/A)
  */
 export async function getStockAsset(symbol: string): Promise<StockAsset | null> {
-  const [quote, profile] = await Promise.all([
-    fetchStockQuote(symbol),
-    fetchStockProfile(symbol),
-  ]);
+  const upperSymbol = symbol.toUpperCase();
+  const cacheKey = `stock-quote-${upperSymbol}`;
 
-  if (!quote) {
+  // Check cache first
+  const cached = cache.get<StockAsset>(cacheKey, CACHE_TTL.STOCK_QUOTE);
+  if (cached) {
+    log(`Stock cache HIT: ${upperSymbol}`, 'stocks', 'debug');
+    return cached;
+  }
+
+  // No providers configured
+  if (!hasAnyProvider) {
+    log(`No API keys - returning null for ${upperSymbol}`, 'stocks', 'debug');
     return null;
   }
 
-  return transformToStockAsset(symbol, quote, profile);
+  // Try Twelve Data first (primary)
+  let asset = await fetchFromTwelveData(upperSymbol);
+
+  // Fallback to Finnhub if Twelve Data failed
+  if (!asset && hasFinnhub) {
+    log(`Falling back to Finnhub for ${upperSymbol}`, 'stocks', 'debug');
+    asset = await fetchFromFinnhub(upperSymbol);
+  }
+
+  // Cache successful response
+  if (asset) {
+    cache.set(cacheKey, asset);
+    log(`Stock fetched: ${upperSymbol} @ $${asset.price}`, 'stocks', 'debug');
+  }
+
+  return asset;
 }
 
 /**
- * Get multiple stock assets (batch request)
+ * Get multiple stock assets
  */
 export async function getStockAssets(symbols: string[]): Promise<StockAsset[]> {
   const results = await Promise.all(
@@ -282,59 +286,226 @@ export async function getStockAssets(symbols: string[]): Promise<StockAsset[]> {
  * Get top/popular stocks
  */
 export async function getTopStocks(): Promise<StockAsset[]> {
-  const symbols = shouldUseMock() ? await getMockSymbols() : TOP_STOCK_SYMBOLS;
-  return getStockAssets(symbols);
+  const TOP_SYMBOLS = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'JPM', 'V', 'JNJ'];
+  return getStockAssets(TOP_SYMBOLS);
 }
 
 /**
- * Search stocks by symbol or name
- *
- * Development: Search mock data
- * Production: Search known symbols (Finnhub search requires paid tier)
+ * Search stocks by symbol
+ * Note: Uses local dataset for fuzzy search, then fetches real data for matches
  */
 export async function searchStocks(query: string): Promise<AssetSearchResult[]> {
+  // Search is handled client-side with Fuse.js
+  // This endpoint just returns basic info
   const upperQuery = query.toUpperCase();
 
-  // In production, we'd need paid Finnhub tier for search
-  // For now, search against known symbols
-  const symbols = shouldUseMock() ? await getMockSymbols() : TOP_STOCK_SYMBOLS;
-
-  const results: AssetSearchResult[] = [];
-
-  for (const symbol of symbols) {
-    if (symbol.includes(upperQuery)) {
-      const profile = shouldUseMock() ? await getMockProfile(symbol) : null;
-      results.push({
-        id: symbol,
-        type: 'stock',
-        symbol,
-        name: profile?.name || symbol,
-        exchange: profile?.exchange,
-      });
-    }
-  }
-
-  return results.slice(0, 10);
+  // For now, return empty - search is done client-side
+  // When user clicks a result, we fetch real data via getStockAsset
+  return [];
 }
 
 /**
- * Check if Finnhub API is configured
+ * Get provider status for health check / debugging
  */
-export function isConfigured(): boolean {
-  return FINNHUB_API_KEY.length > 0;
-}
-
-/**
- * Get service status for health check
- */
-export function getServiceStatus(): {
-  configured: boolean;
-  mockMode: boolean;
-  circuitState: string;
+export function getProviderStatus(): {
+  twelveData: { configured: boolean; apiKey: string };
+  finnhub: { configured: boolean; apiKey: string };
+  anyConfigured: boolean;
 } {
   return {
-    configured: isConfigured(),
-    mockMode: shouldUseMock(),
-    circuitState: finnhubBreaker.getState(),
+    twelveData: {
+      configured: hasTwelveData,
+      apiKey: hasTwelveData ? '***configured***' : 'missing',
+    },
+    finnhub: {
+      configured: hasFinnhub,
+      apiKey: hasFinnhub ? '***configured***' : 'missing',
+    },
+    anyConfigured: hasAnyProvider,
   };
+}
+
+/**
+ * Check if service has any provider configured
+ */
+export function isConfigured(): boolean {
+  return hasAnyProvider;
+}
+
+// =============================================================================
+// HISTORICAL CHART DATA
+// =============================================================================
+
+/**
+ * Get resolution and time range for Finnhub candles
+ */
+function getChartParams(timeframe: ChartTimeframe): { resolution: string; from: number; to: number } {
+  const now = Math.floor(Date.now() / 1000);
+  const day = 24 * 60 * 60;
+
+  switch (timeframe) {
+    case '1D':
+      return { resolution: '5', from: now - day, to: now }; // 5-minute candles
+    case '7D':
+      return { resolution: '60', from: now - 7 * day, to: now }; // 1-hour candles
+    case '30D':
+      return { resolution: 'D', from: now - 30 * day, to: now }; // Daily candles
+    case '1Y':
+      return { resolution: 'D', from: now - 365 * day, to: now }; // Daily candles
+    default:
+      return { resolution: 'D', from: now - 30 * day, to: now };
+  }
+}
+
+/**
+ * Fetch chart data from Finnhub
+ */
+async function fetchChartFromFinnhub(
+  symbol: string,
+  timeframe: ChartTimeframe
+): Promise<ChartDataPoint[] | null> {
+  if (!hasFinnhub) return null;
+
+  try {
+    const { resolution, from, to } = getChartParams(timeframe);
+    const url = `${API_URLS.FINNHUB}/stock/candle?symbol=${symbol}&resolution=${resolution}&from=${from}&to=${to}&token=${FINNHUB_API_KEY}`;
+
+    const response = await fetchWithTimeout(url);
+    if (!response.ok) {
+      log(`Finnhub candle error: ${response.status}`, 'stocks', 'warn');
+      return null;
+    }
+
+    const data: FinnhubCandle = await response.json();
+
+    if (data.s !== 'ok' || !data.c || data.c.length === 0) {
+      log(`Finnhub no candle data for ${symbol}`, 'stocks', 'debug');
+      return null;
+    }
+
+    // Transform to ChartDataPoint array
+    return data.t.map((timestamp, i) => ({
+      timestamp: timestamp * 1000, // Convert to milliseconds
+      price: data.c[i],
+      open: data.o[i],
+      high: data.h[i],
+      low: data.l[i],
+      volume: data.v[i],
+    }));
+  } catch (error) {
+    logError(error as Error, `Finnhub candle fetch failed: ${symbol}`);
+    return null;
+  }
+}
+
+/**
+ * Fetch chart data from Twelve Data
+ */
+async function fetchChartFromTwelveData(
+  symbol: string,
+  timeframe: ChartTimeframe
+): Promise<ChartDataPoint[] | null> {
+  if (!hasTwelveData) return null;
+
+  try {
+    // Map timeframe to Twelve Data interval and outputsize
+    let interval: string;
+    let outputsize: number;
+
+    switch (timeframe) {
+      case '1D':
+        interval = '5min';
+        outputsize = 78; // ~6.5 hours of trading
+        break;
+      case '7D':
+        interval = '1h';
+        outputsize = 50; // ~7 days of hourly
+        break;
+      case '30D':
+        interval = '1day';
+        outputsize = 30;
+        break;
+      case '1Y':
+        interval = '1day';
+        outputsize = 252; // Trading days in a year
+        break;
+      default:
+        interval = '1day';
+        outputsize = 30;
+    }
+
+    const url = `${API_URLS.TWELVE_DATA}/time_series?symbol=${symbol}&interval=${interval}&outputsize=${outputsize}&apikey=${TWELVE_DATA_API_KEY}`;
+
+    const response = await fetchWithTimeout(url);
+    if (!response.ok) {
+      log(`Twelve Data time_series error: ${response.status}`, 'stocks', 'warn');
+      return null;
+    }
+
+    const data: TwelveDataTimeSeries = await response.json();
+
+    if (!data.values || data.values.length === 0) {
+      log(`Twelve Data no time_series data for ${symbol}`, 'stocks', 'debug');
+      return null;
+    }
+
+    // Transform and reverse (Twelve Data returns newest first)
+    return data.values
+      .map((point) => ({
+        timestamp: new Date(point.datetime).getTime(),
+        price: parseFloat(point.close),
+        open: parseFloat(point.open),
+        high: parseFloat(point.high),
+        low: parseFloat(point.low),
+        volume: parseInt(point.volume) || 0,
+      }))
+      .reverse();
+  } catch (error) {
+    logError(error as Error, `Twelve Data time_series fetch failed: ${symbol}`);
+    return null;
+  }
+}
+
+/**
+ * Get historical chart data for a stock
+ *
+ * @param symbol - Stock symbol (e.g., "AAPL")
+ * @param timeframe - Time range: "1D", "7D", "30D", "1Y"
+ * @returns Array of chart data points or null if unavailable
+ */
+export async function getStockChart(
+  symbol: string,
+  timeframe: ChartTimeframe = '30D'
+): Promise<ChartDataPoint[] | null> {
+  const upperSymbol = symbol.toUpperCase();
+  const cacheKey = `stock-chart-${upperSymbol}-${timeframe}`;
+
+  // Check cache first
+  const cached = cache.get<ChartDataPoint[]>(cacheKey, CACHE_TTL.STOCK_CHART);
+  if (cached) {
+    log(`Stock chart cache HIT: ${upperSymbol} ${timeframe}`, 'stocks', 'debug');
+    return cached;
+  }
+
+  // No providers configured
+  if (!hasAnyProvider) {
+    return null;
+  }
+
+  // Try Twelve Data first (primary)
+  let chartData = await fetchChartFromTwelveData(upperSymbol, timeframe);
+
+  // Fallback to Finnhub
+  if (!chartData && hasFinnhub) {
+    log(`Falling back to Finnhub for chart: ${upperSymbol}`, 'stocks', 'debug');
+    chartData = await fetchChartFromFinnhub(upperSymbol, timeframe);
+  }
+
+  // Cache successful response
+  if (chartData && chartData.length > 0) {
+    cache.set(cacheKey, chartData);
+    log(`Stock chart fetched: ${upperSymbol} ${timeframe} (${chartData.length} points)`, 'stocks', 'debug');
+  }
+
+  return chartData;
 }

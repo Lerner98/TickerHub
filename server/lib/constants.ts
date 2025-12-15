@@ -1,8 +1,13 @@
 // API Base URLs
 export const API_URLS = {
   COINGECKO: 'https://api.coingecko.com/api/v3',
-  ETHERSCAN: 'https://api.etherscan.io/v2/api',
+  BLOCKCHAIR: 'https://api.blockchair.com',
   BLOCKCHAIN: 'https://blockchain.info',
+  // Stock data providers (dual-provider: Twelve Data primary, Finnhub fallback)
+  TWELVE_DATA: 'https://api.twelvedata.com',
+  FINNHUB: 'https://finnhub.io/api/v1',
+  // Stock symbols list (free, no API key required)
+  DUMB_STOCK_API: 'https://dumbstockapi.com',
 } as const;
 
 // Cache TTLs (milliseconds)
@@ -17,21 +22,20 @@ export const CACHE_TTL = {
   ADDRESS: 60_000,       // 1 minute
   ADDRESS_TXS: 60_000,   // 1 minute
   STATS: 300_000,        // 5 minutes
+  // Stock data caching
+  STOCK_QUOTE: 30_000,   // 30 seconds (real-time feel with rate limit protection)
+  STOCK_PROFILE: 86_400_000, // 24 hours (company info rarely changes)
+  STOCK_CHART: 60_000,   // 1 minute
 } as const;
 
 // API Configuration
-export const API_CONFIG: {
-  TIMEOUT: number;
-  RATE_LIMIT: { WINDOW_MS: number; MAX_REQUESTS: number };
-  ETHERSCAN_API_KEY: string;
-} = {
+export const API_CONFIG = {
   TIMEOUT: 10_000,       // 10 seconds
   RATE_LIMIT: {
     WINDOW_MS: 60_000,   // 1 minute
     MAX_REQUESTS: 100,   // per window
   },
-  ETHERSCAN_API_KEY: process.env.ETHERSCAN_API_KEY || '',
-};
+} as const;
 
 // Supported chains
 export const SUPPORTED_CHAINS = ['bitcoin', 'ethereum'] as const;

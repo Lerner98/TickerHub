@@ -1,8 +1,14 @@
 import { fetchWithTimeout } from '../../lib/apiClient';
-import { API_URLS, API_CONFIG } from '../../lib/constants';
+import { API_URLS } from '../../lib/constants';
 import type { Transaction, Address } from '@shared/schema';
 
-const ETHERSCAN_API_KEY = API_CONFIG.ETHERSCAN_API_KEY;
+/**
+ * Explorer service using Blockchair API (free, no API key required)
+ *
+ * Blockchair provides unified API for multiple blockchains.
+ * Free tier: 30 requests/minute without API key
+ * @see https://blockchair.com/api/docs
+ */
 
 // ============ Transaction Services ============
 
@@ -11,33 +17,29 @@ const ETHERSCAN_API_KEY = API_CONFIG.ETHERSCAN_API_KEY;
  */
 export async function fetchEthTransaction(hash: string): Promise<Transaction | null> {
   const response = await fetchWithTimeout(
-    `${API_URLS.ETHERSCAN}?module=proxy&action=eth_getTransactionByHash&txhash=${hash}&apikey=${ETHERSCAN_API_KEY}`
+    `${API_URLS.BLOCKCHAIR}/ethereum/dashboards/transaction/${hash}`
   );
   const data = await response.json();
 
-  if (!data.result) {
+  if (!data.data || !data.data[hash]) {
     return null;
   }
 
-  // Get receipt for additional details
-  const receiptResponse = await fetchWithTimeout(
-    `${API_URLS.ETHERSCAN}?module=proxy&action=eth_getTransactionReceipt&txhash=${hash}&apikey=${ETHERSCAN_API_KEY}`
-  );
-  const receiptData = await receiptResponse.json();
+  const tx = data.data[hash].transaction;
 
   return {
-    hash: data.result.hash,
-    blockNumber: parseInt(data.result.blockNumber, 16),
-    timestamp: Math.floor(Date.now() / 1000) - 300,
-    from: data.result.from,
-    to: data.result.to || 'Contract Creation',
-    value: data.result.value,
-    fee: (parseInt(data.result.gas, 16) * parseInt(data.result.gasPrice, 16)).toString(),
-    gasPrice: (parseInt(data.result.gasPrice, 16) / 1e9).toFixed(2),
-    gasUsed: receiptData.result ? parseInt(receiptData.result.gasUsed, 16) : parseInt(data.result.gas, 16),
-    status: receiptData.result?.status === '0x1' ? 'confirmed' : 'failed',
+    hash: tx.hash,
+    blockNumber: tx.block_id,
+    timestamp: Math.floor(new Date(tx.time).getTime() / 1000),
+    from: tx.sender,
+    to: tx.recipient || 'Contract Creation',
+    value: tx.value?.toString() || '0',
+    fee: tx.fee?.toString() || '0',
+    gasPrice: tx.gas_price ? (tx.gas_price / 1e9).toFixed(2) : '0',
+    gasUsed: tx.gas_used || tx.gas_limit || 21000,
+    status: tx.failed ? 'failed' : 'confirmed',
     confirmations: 100,
-    input: data.result.input,
+    input: tx.input_hex || '0x',
     chain: 'ethereum',
   };
 }
@@ -46,24 +48,29 @@ export async function fetchEthTransaction(hash: string): Promise<Transaction | n
  * Fetch Bitcoin transaction by hash
  */
 export async function fetchBtcTransaction(hash: string): Promise<Transaction | null> {
-  const response = await fetchWithTimeout(`${API_URLS.BLOCKCHAIN}/rawtx/${hash}`);
+  const response = await fetchWithTimeout(
+    `${API_URLS.BLOCKCHAIR}/bitcoin/dashboards/transaction/${hash}`
+  );
+  const data = await response.json();
 
-  if (!response.ok) {
+  if (!data.data || !data.data[hash]) {
     return null;
   }
 
-  const data = await response.json();
+  const tx = data.data[hash].transaction;
+  const inputs = data.data[hash].inputs || [];
+  const outputs = data.data[hash].outputs || [];
 
   return {
-    hash: data.hash,
-    blockNumber: data.block_height || 0,
-    timestamp: data.time,
-    from: data.inputs?.[0]?.prev_out?.addr || 'Unknown',
-    to: data.out?.[0]?.addr || 'Unknown',
-    value: data.out?.reduce((sum: number, out: any) => sum + out.value, 0).toString() || '0',
-    fee: data.fee?.toString() || '0',
-    status: data.block_height ? 'confirmed' : 'pending',
-    confirmations: data.block_height ? 6 : 0,
+    hash: tx.hash,
+    blockNumber: tx.block_id || 0,
+    timestamp: Math.floor(new Date(tx.time).getTime() / 1000),
+    from: inputs[0]?.recipient || 'Coinbase',
+    to: outputs[0]?.recipient || 'Unknown',
+    value: (tx.output_total / 1e8).toFixed(8),
+    fee: ((tx.fee || 0) / 1e8).toFixed(8),
+    status: tx.block_id ? 'confirmed' : 'pending',
+    confirmations: tx.block_id ? 6 : 0,
     chain: 'bitcoin',
   };
 }
@@ -87,25 +94,35 @@ export async function fetchTransaction(hash: string): Promise<Transaction | null
  * Fetch Ethereum address info
  */
 export async function fetchEthAddress(address: string): Promise<Address> {
-  const [balanceResponse, txCountResponse] = await Promise.all([
-    fetchWithTimeout(
-      `${API_URLS.ETHERSCAN}?module=account&action=balance&address=${address}&tag=latest&apikey=${ETHERSCAN_API_KEY}`
-    ),
-    fetchWithTimeout(
-      `${API_URLS.ETHERSCAN}?module=proxy&action=eth_getTransactionCount&address=${address}&tag=latest&apikey=${ETHERSCAN_API_KEY}`
-    ),
-  ]);
+  const response = await fetchWithTimeout(
+    `${API_URLS.BLOCKCHAIR}/ethereum/dashboards/address/${address}`
+  );
+  const data = await response.json();
 
-  const balanceData = await balanceResponse.json();
-  const txCountData = await txCountResponse.json();
+  if (!data.data || !data.data[address.toLowerCase()]) {
+    return {
+      address,
+      balance: '0',
+      transactionCount: 0,
+      chain: 'ethereum',
+      lastActivity: Math.floor(Date.now() / 1000),
+      firstSeen: Math.floor(Date.now() / 1000),
+    };
+  }
+
+  const addrData = data.data[address.toLowerCase()].address;
 
   return {
     address,
-    balance: balanceData.result || '0',
-    transactionCount: parseInt(txCountData.result, 16) || 0,
+    balance: addrData.balance?.toString() || '0',
+    transactionCount: addrData.transaction_count || 0,
     chain: 'ethereum',
-    lastActivity: Math.floor(Date.now() / 1000) - 3600,
-    firstSeen: Math.floor(Date.now() / 1000) - 86400 * 365,
+    lastActivity: addrData.last_seen_receiving
+      ? Math.floor(new Date(addrData.last_seen_receiving).getTime() / 1000)
+      : Math.floor(Date.now() / 1000),
+    firstSeen: addrData.first_seen_receiving
+      ? Math.floor(new Date(addrData.first_seen_receiving).getTime() / 1000)
+      : Math.floor(Date.now() / 1000),
   };
 }
 
@@ -113,21 +130,28 @@ export async function fetchEthAddress(address: string): Promise<Address> {
  * Fetch Bitcoin address info
  */
 export async function fetchBtcAddress(address: string): Promise<Address | null> {
-  const response = await fetchWithTimeout(`${API_URLS.BLOCKCHAIN}/rawaddr/${address}?limit=0`);
+  const response = await fetchWithTimeout(
+    `${API_URLS.BLOCKCHAIR}/bitcoin/dashboards/address/${address}`
+  );
+  const data = await response.json();
 
-  if (!response.ok) {
+  if (!data.data || !data.data[address]) {
     return null;
   }
 
-  const data = await response.json();
+  const addrData = data.data[address].address;
 
   return {
     address,
-    balance: data.final_balance?.toString() || '0',
-    transactionCount: data.n_tx || 0,
+    balance: addrData.balance?.toString() || '0',
+    transactionCount: addrData.transaction_count || 0,
     chain: 'bitcoin',
-    lastActivity: data.txs?.[0]?.time,
-    firstSeen: data.txs?.[data.txs?.length - 1]?.time,
+    lastActivity: addrData.last_seen_receiving
+      ? Math.floor(new Date(addrData.last_seen_receiving).getTime() / 1000)
+      : undefined,
+    firstSeen: addrData.first_seen_receiving
+      ? Math.floor(new Date(addrData.first_seen_receiving).getTime() / 1000)
+      : undefined,
   };
 }
 
@@ -151,25 +175,25 @@ export async function fetchAddress(address: string): Promise<Address | null> {
  */
 export async function fetchEthAddressTransactions(address: string): Promise<Transaction[]> {
   const response = await fetchWithTimeout(
-    `${API_URLS.ETHERSCAN}?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&page=1&offset=25&sort=desc&apikey=${ETHERSCAN_API_KEY}`
+    `${API_URLS.BLOCKCHAIR}/ethereum/dashboards/address/${address}?limit=25&transaction_details=true`
   );
   const data = await response.json();
 
-  if (!data.result || !Array.isArray(data.result)) {
+  if (!data.data || !data.data[address.toLowerCase()] || !data.data[address.toLowerCase()].transactions) {
     return [];
   }
 
-  return data.result.map((tx: any) => ({
+  return data.data[address.toLowerCase()].transactions.map((tx: any) => ({
     hash: tx.hash,
-    blockNumber: parseInt(tx.blockNumber),
-    timestamp: parseInt(tx.timeStamp),
-    from: tx.from,
-    to: tx.to,
-    value: tx.value,
-    fee: (parseInt(tx.gasUsed) * parseInt(tx.gasPrice)).toString(),
-    gasPrice: (parseInt(tx.gasPrice) / 1e9).toFixed(2),
-    gasUsed: parseInt(tx.gasUsed),
-    status: tx.isError === '0' ? 'confirmed' : 'failed',
+    blockNumber: tx.block_id,
+    timestamp: Math.floor(new Date(tx.time).getTime() / 1000),
+    from: tx.sender,
+    to: tx.recipient || 'Contract Creation',
+    value: tx.value?.toString() || '0',
+    fee: tx.fee?.toString() || '0',
+    gasPrice: tx.gas_price ? (tx.gas_price / 1e9).toFixed(2) : '0',
+    gasUsed: tx.gas_used || 21000,
+    status: tx.failed ? 'failed' : 'confirmed',
     confirmations: 100,
     chain: 'ethereum' as const,
   }));
@@ -179,28 +203,25 @@ export async function fetchEthAddressTransactions(address: string): Promise<Tran
  * Fetch Bitcoin address transactions
  */
 export async function fetchBtcAddressTransactions(address: string): Promise<Transaction[]> {
-  const response = await fetchWithTimeout(`${API_URLS.BLOCKCHAIN}/rawaddr/${address}?limit=25`);
-
-  if (!response.ok) {
-    return [];
-  }
-
+  const response = await fetchWithTimeout(
+    `${API_URLS.BLOCKCHAIR}/bitcoin/dashboards/address/${address}?limit=25&transaction_details=true`
+  );
   const data = await response.json();
 
-  if (!data.txs) {
+  if (!data.data || !data.data[address] || !data.data[address].transactions) {
     return [];
   }
 
-  return data.txs.map((tx: any) => ({
+  return data.data[address].transactions.map((tx: any) => ({
     hash: tx.hash,
-    blockNumber: tx.block_height || 0,
-    timestamp: tx.time,
-    from: tx.inputs?.[0]?.prev_out?.addr || 'Unknown',
-    to: tx.out?.[0]?.addr || 'Unknown',
-    value: tx.out?.reduce((sum: number, out: any) => sum + out.value, 0).toString() || '0',
-    fee: tx.fee?.toString() || '0',
-    status: tx.block_height ? 'confirmed' : 'pending',
-    confirmations: tx.block_height ? 6 : 0,
+    blockNumber: tx.block_id || 0,
+    timestamp: Math.floor(new Date(tx.time).getTime() / 1000),
+    from: 'See Details',
+    to: 'See Details',
+    value: (tx.balance_change / 1e8).toFixed(8),
+    fee: '0',
+    status: tx.block_id ? 'confirmed' : 'pending',
+    confirmations: tx.block_id ? 6 : 0,
     chain: 'bitcoin' as const,
   }));
 }

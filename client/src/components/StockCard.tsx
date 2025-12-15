@@ -1,5 +1,6 @@
 import { cn, formatCurrency, formatPercentage } from '@/lib/utils';
 import { GlassCard } from './GlassCard';
+import { WatchlistButton } from './WatchlistButton';
 import { Badge } from '@/components/ui/badge';
 import { TrendingUp, TrendingDown, Building2 } from 'lucide-react';
 import type { StockAsset } from '@shared/schema';
@@ -31,20 +32,23 @@ export function StockCard({ stock, rank }: StockCardProps) {
             <p className="text-sm text-muted-foreground uppercase">{stock.symbol}</p>
           </div>
         </div>
-        <Badge
-          variant={isPositive ? "default" : "destructive"}
-          className={cn(
-            "gap-1",
-            isPositive && "bg-accent/20 text-accent border-accent/30"
-          )}
-        >
-          {isPositive ? (
-            <TrendingUp className="w-3 h-3" />
-          ) : (
-            <TrendingDown className="w-3 h-3" />
-          )}
-          {formatPercentage(stock.changePercent24h)}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <WatchlistButton assetId={stock.symbol} assetType="stock" />
+          <Badge
+            variant={isPositive ? "default" : "destructive"}
+            className={cn(
+              "gap-1",
+              isPositive && "bg-accent/20 text-accent border-accent/30"
+            )}
+          >
+            {isPositive ? (
+              <TrendingUp className="w-3 h-3" />
+            ) : (
+              <TrendingDown className="w-3 h-3" />
+            )}
+            {formatPercentage(stock.changePercent24h)}
+          </Badge>
+        </div>
       </div>
 
       <div className="mb-4">

@@ -24,3 +24,6 @@ Thumbs.db
 # Replit
 .replit
 .local/claude.md
+
+# Test coverage
+coverage/

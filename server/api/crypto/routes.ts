@@ -52,6 +52,58 @@ router.get('/prices', asyncHandler(async (_req, res) => {
 }));
 
 /**
+ * GET /api/prices/batch
+ *
+ * Returns specific cryptocurrencies by their CoinGecko IDs.
+ * Useful for watchlist/portfolio views.
+ *
+ * @query {string} ids - Comma-separated CoinGecko IDs (required)
+ *
+ * @response {Array<PriceData>} 200 - List of cryptocurrency prices
+ * @response {Object} 400 - Missing or invalid parameters
+ *
+ * @example Request: GET /api/prices/batch?ids=bitcoin,ethereum,solana
+ */
+router.get('/prices/batch', asyncHandler(async (req, res) => {
+  const idsParam = req.query.ids as string;
+
+  if (!idsParam) {
+    return res.status(400).json({
+      error: 'Missing ids parameter',
+      message: 'Provide ids using ?ids=bitcoin,ethereum,solana',
+    });
+  }
+
+  const ids = idsParam.split(',').map((id) => id.trim().toLowerCase());
+
+  if (ids.length === 0) {
+    return res.status(400).json({
+      error: 'Invalid ids',
+      message: 'Provide at least one valid coin ID',
+    });
+  }
+
+  if (ids.length > 50) {
+    return res.status(400).json({
+      error: 'Too many ids',
+      message: 'Maximum 50 coins per request',
+    });
+  }
+
+  // Check cache for this specific batch
+  const cacheKey = `prices-batch-${ids.sort().join(',')}`;
+  const cached = cache.get(cacheKey, CACHE_TTL.PRICES);
+
+  if (cached) {
+    return res.json(cached);
+  }
+
+  const prices = await cryptoService.fetchPricesByIds(ids);
+  cache.set(cacheKey, prices);
+  res.json(prices);
+}));
+
+/**
  * GET /api/chart/:coinId/:range
  *
  * Returns historical price chart data for a specific cryptocurrency.

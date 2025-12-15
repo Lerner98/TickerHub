@@ -47,9 +47,9 @@ export const securityHeaders: RequestHandler = helmet({
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'"], // Required for Vite HMR in dev
-      styleSrc: ["'self'", "'unsafe-inline'"], // Required for inline styles
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'], // Google Fonts stylesheets
       imgSrc: ["'self'", 'data:', 'https:'], // Allow external images (coin logos)
-      fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'], // Google Fonts + data URIs for lightweight-charts
       connectSrc: [
         "'self'",
         // External APIs we connect to

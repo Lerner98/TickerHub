@@ -13,12 +13,16 @@ import AddressPage from "@/pages/AddressPage";
 import BlockPage from "@/pages/BlockPage";
 import AnalyticsPage from "@/pages/AnalyticsPage";
 import StockPage from "@/pages/StockPage";
+import WatchlistPage from "@/pages/WatchlistPage";
+import SettingsPage from "@/pages/SettingsPage";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={LandingPage} />
       <Route path="/dashboard" component={DashboardPage} />
+      <Route path="/watchlist" component={WatchlistPage} />
+      <Route path="/settings" component={SettingsPage} />
       <Route path="/explorer/:chain" component={ExplorerPage} />
       <Route path="/explorer" component={ExplorerPage} />
       <Route path="/tx/:hash" component={TransactionPage} />

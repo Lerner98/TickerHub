@@ -21,10 +21,12 @@ import { API_CONFIG } from './constants';
  */
 const ALLOWED_HOSTS = new Set([
   'api.coingecko.com',
-  'api.etherscan.io',
+  'api.blockchair.com',
   'blockchain.info',
-  'finnhub.io', // Future: Stock market integration
-  'api.finnhub.io',
+  // Stock data providers (dual-provider: Twelve Data primary, Finnhub fallback)
+  'api.twelvedata.com',  // Primary: Twelve Data ($29/mo paid, best coverage)
+  'finnhub.io',          // Fallback: Finnhub (free tier: 60 calls/min)
+  // AI providers
   'api.groq.com', // AI: Free tier fallback (30 RPM)
   'generativelanguage.googleapis.com', // AI: Gemini primary (15 RPM)
 ]);
@@ -120,7 +122,7 @@ export class ApiError extends Error {
 export async function fetchWithTimeout(
   url: string,
   options: RequestInit = {},
-  timeout = API_CONFIG.TIMEOUT
+  timeout: number = API_CONFIG.TIMEOUT
 ): Promise<Response> {
   // SSRF Protection: Validate URL against allowlist
   if (!isAllowedUrl(url)) {

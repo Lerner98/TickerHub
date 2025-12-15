@@ -3,6 +3,7 @@ import { NetworkStatsGrid } from '@/components/NetworkStats';
 import { PriceChart } from '@/components/PriceChart';
 import { RecentBlocks } from '@/components/RecentBlocks';
 import { MarketTable } from '@/components/MarketTable';
+import { MarketHours } from '@/components/MarketHours';
 import { TopCryptoList } from '@/components/PriceCard';
 import { TopStocksList } from '@/components/StockCard';
 import { FullPageLoading } from '@/components/LoadingState';
@@ -34,6 +35,9 @@ export default function DashboardPage() {
             <FullPageLoading />
           ) : (
             <>
+              {/* Market Hours - Unique fintech feature */}
+              <MarketHours />
+
               {prices && (
                 <section>
                   <h2 className="text-lg font-semibold mb-4">Top Cryptocurrencies</h2>

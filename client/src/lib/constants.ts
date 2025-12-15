@@ -6,6 +6,7 @@
 export const API_ENDPOINTS = {
   // Crypto endpoints
   PRICES: '/api/prices',
+  PRICES_BATCH: '/api/prices/batch',
   CHART: '/api/chart',
   STATS: '/api/stats',
 

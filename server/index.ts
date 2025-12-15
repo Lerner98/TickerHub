@@ -1,4 +1,6 @@
-import 'dotenv/config';
+// Load environment variables FIRST - before any other imports
+import './env';
+
 import express, { type Request, Response, NextFunction } from 'express';
 import { registerRoutes } from './routes';
 import { serveStatic } from './static';
@@ -12,6 +14,8 @@ import {
   sanitizeRequest,
 } from './middleware/security';
 import { log, logRequest } from './lib/logger';
+import { toNodeHandler } from 'better-auth/node';
+import { auth } from './auth';
 
 const app = express();
 const httpServer = createServer(app);
@@ -37,6 +41,14 @@ app.use(sanitizeRequest());
 
 // API-specific security headers
 app.use('/api', apiSecurityHeaders());
+
+// =============================================================================
+// Better Auth Handler (MUST come BEFORE express.json!)
+// =============================================================================
+// CRITICAL: Better Auth needs to parse request body itself.
+// If express.json() runs first, the auth handler receives an empty body and hangs.
+
+app.all('/api/auth/*', toNodeHandler(auth));
 
 // =============================================================================
 // Body Parsing Middleware

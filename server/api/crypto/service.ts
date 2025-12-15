@@ -33,6 +33,40 @@ export async function fetchPrices(): Promise<PriceData[]> {
 }
 
 /**
+ * Fetch specific cryptocurrencies by their CoinGecko IDs
+ * Uses the /coins/markets endpoint with ids filter for efficient batching
+ */
+export async function fetchPricesByIds(ids: string[]): Promise<PriceData[]> {
+  if (ids.length === 0) return [];
+
+  const idsParam = ids.join(',');
+  const url = `${API_URLS.COINGECKO}/coins/markets?vs_currency=usd&ids=${idsParam}&order=market_cap_desc&sparkline=true&price_change_percentage=24h`;
+
+  const response = await fetchWithTimeout(url);
+
+  if (!response.ok) {
+    throw new Error(`CoinGecko API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  return data.map((coin: any) => ({
+    id: coin.id,
+    symbol: coin.symbol,
+    name: coin.name,
+    image: coin.image,
+    price: coin.current_price,
+    priceChange24h: coin.price_change_24h,
+    priceChangePercentage24h: coin.price_change_percentage_24h,
+    marketCap: coin.market_cap,
+    volume24h: coin.total_volume,
+    high24h: coin.high_24h,
+    low24h: coin.low_24h,
+    sparkline: coin.sparkline_in_7d?.price?.filter((_: unknown, i: number) => i % 4 === 0) || [],
+  }));
+}
+
+/**
  * Fetch price chart data for a specific coin
  */
 export async function fetchChart(coinId: string, range: string): Promise<ChartDataPoint[]> {

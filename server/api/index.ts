@@ -4,6 +4,7 @@ import blockchainRoutes from './blockchain/routes';
 import explorerRoutes from './explorer/routes';
 import statsRoutes from './stats/routes';
 import stockRoutes from './stocks/routes';
+import watchlistRoutes from './watchlist/routes';
 
 const router = Router();
 
@@ -35,6 +36,12 @@ const router = Router();
  * - /api/stocks/search   - Search stocks
  * - /api/stocks/batch    - Multiple stocks by symbols
  * - /api/stocks/status   - Service health status
+ *
+ * Watchlist Routes (Protected - Requires Auth):
+ * - GET    /api/watchlist              - Get user's watchlist
+ * - POST   /api/watchlist              - Add asset to watchlist
+ * - DELETE /api/watchlist/:assetId     - Remove asset from watchlist
+ * - GET    /api/watchlist/check/:assetId - Check if asset in watchlist
  */
 
 // Mount all route modules
@@ -42,6 +49,7 @@ router.use(cryptoRoutes);
 router.use(blockchainRoutes);
 router.use(explorerRoutes);
 router.use(statsRoutes);
-router.use('/stocks', stockRoutes); // Prepared for stock market expansion
+router.use('/stocks', stockRoutes);
+router.use('/watchlist', watchlistRoutes); // Protected routes (requires auth)
 
 export default router;

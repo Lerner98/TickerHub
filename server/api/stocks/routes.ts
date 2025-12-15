@@ -1,12 +1,13 @@
 /**
  * Stock Market Routes
  *
- * Provides REST API endpoints for stock market data.
- * Uses unified Asset types (ADR-007) and mock data in development.
+ * Provides REST API endpoints for US stock market data.
+ * Dual-provider architecture: Twelve Data (primary) + Finnhub (fallback).
+ * Returns null/empty when no API keys configured (UI shows N/A).
  *
  * Endpoints:
  * - GET /api/stocks              - Top 10 stocks
- * - GET /api/stocks/:symbol      - Single stock details
+ * - GET /api/stocks/:symbol      - Single stock details + charts
  * - GET /api/stocks/search       - Search stocks by query
  * - GET /api/stocks/batch        - Multiple stocks by symbols
  * - GET /api/stocks/status       - Service health status
@@ -21,7 +22,9 @@ import {
   getStockAsset,
   getStockAssets,
   searchStocks,
-  getServiceStatus,
+  getProviderStatus,
+  getStockChart,
+  type ChartTimeframe,
 } from './service';
 
 const router = Router();
@@ -30,7 +33,7 @@ const router = Router();
  * GET /api/stocks
  *
  * Returns top 10 stock assets with real-time quotes.
- * Uses mock data in development mode.
+ * Returns empty array when no API keys configured.
  *
  * @response {StockAsset[]} 200 - List of stock assets
  *
@@ -160,7 +163,7 @@ router.get(
  * {
  *   "service": "stocks",
  *   "configured": true,
- *   "mockMode": false,
+ *   "anyConfigured": true,
  *   "circuitState": "closed"
  * }
  * ```
@@ -168,11 +171,62 @@ router.get(
 router.get(
   '/status',
   asyncHandler(async (_req, res) => {
-    const status = getServiceStatus();
+    const status = getProviderStatus();
     res.json({
       service: 'stocks',
       ...status,
     });
+  })
+);
+
+/**
+ * GET /api/stocks/:symbol/chart
+ *
+ * Get historical chart data for a stock.
+ * Uses TradingView-compatible data format.
+ *
+ * @param {string} symbol - Stock ticker symbol (e.g., AAPL)
+ * @query {string} timeframe - Time range: 1D, 7D, 30D, 1Y (default: 30D)
+ *
+ * @response {ChartDataPoint[]} 200 - Array of chart data points
+ * @response {Object} 404 - No chart data available
+ *
+ * @example Request: GET /api/stocks/AAPL/chart?timeframe=30D
+ * @example Response:
+ * ```json
+ * [
+ *   { "timestamp": 1702300800000, "price": 195.89, "open": 194.20, "high": 196.50, "low": 193.80, "volume": 48234567 },
+ *   ...
+ * ]
+ * ```
+ */
+router.get(
+  '/:symbol/chart',
+  asyncHandler(async (req, res) => {
+    const { symbol } = req.params;
+    const timeframe = (req.query.timeframe as ChartTimeframe) || '30D';
+
+    // Validate timeframe
+    const validTimeframes: ChartTimeframe[] = ['1D', '7D', '30D', '1Y'];
+    if (!validTimeframes.includes(timeframe)) {
+      return res.status(400).json({
+        error: 'Invalid timeframe',
+        message: `Timeframe must be one of: ${validTimeframes.join(', ')}`,
+      });
+    }
+
+    const chartData = await getStockChart(symbol, timeframe);
+
+    if (!chartData || chartData.length === 0) {
+      return res.status(404).json({
+        error: 'Chart data not available',
+        message: `No historical data for ${symbol.toUpperCase()}. API key may not be configured.`,
+        symbol: symbol.toUpperCase(),
+        timeframe,
+      });
+    }
+
+    res.json(chartData);
   })
 );
 

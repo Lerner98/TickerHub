@@ -1,41 +1,37 @@
 import { fetchWithTimeout } from '../../lib/apiClient';
-import { API_URLS, API_CONFIG } from '../../lib/constants';
+import { API_URLS } from '../../lib/constants';
 import type { Block, NetworkStats } from '@shared/schema';
 
-const ETHERSCAN_API_KEY = API_CONFIG.ETHERSCAN_API_KEY;
+/**
+ * Ethereum service using Blockchair API (free, no API key required)
+ *
+ * Blockchair provides unified API for multiple blockchains.
+ * Free tier: 30 requests/minute without API key
+ * @see https://blockchair.com/api/docs
+ */
 
 /**
  * Fetch Ethereum network statistics
  */
 export async function fetchNetworkStats(): Promise<NetworkStats> {
-  const [blockNumResponse, gasResponse] = await Promise.all([
-    fetchWithTimeout(
-      `${API_URLS.ETHERSCAN}?module=proxy&action=eth_blockNumber&apikey=${ETHERSCAN_API_KEY}`
-    ),
-    fetchWithTimeout(
-      `${API_URLS.ETHERSCAN}?module=gastracker&action=gasoracle&apikey=${ETHERSCAN_API_KEY}`
-    ),
-  ]);
+  const response = await fetchWithTimeout(`${API_URLS.BLOCKCHAIR}/ethereum/stats`);
+  const data = await response.json();
 
-  const blockNumData = await blockNumResponse.json();
-  const gasData = await gasResponse.json();
+  if (!data.data) {
+    throw new Error('Invalid response from Blockchair');
+  }
 
-  const blockHeight = parseInt(blockNumData.result, 16);
+  const stats = data.data;
 
   return {
     chain: 'ethereum',
-    blockHeight,
-    tps: 15,
+    blockHeight: stats.blocks,
+    tps: Math.round((stats.transactions_24h || 1000000) / 86400), // txs per day to TPS
     averageBlockTime: 12.1,
-    gasPrice: gasData.result ? {
-      low: parseInt(gasData.result.SafeGasPrice) || 10,
-      average: parseInt(gasData.result.ProposeGasPrice) || 20,
-      high: parseInt(gasData.result.FastGasPrice) || 30,
-      unit: 'gwei',
-    } : {
-      low: 10,
-      average: 20,
-      high: 35,
+    gasPrice: {
+      low: Math.round((stats.suggested_transaction_fee_gwei_low || 10)),
+      average: Math.round((stats.suggested_transaction_fee_gwei_average || 20)),
+      high: Math.round((stats.suggested_transaction_fee_gwei_high || 35)),
       unit: 'gwei',
     },
   };
@@ -55,72 +51,40 @@ export function getFallbackNetworkStats(): NetworkStats {
 }
 
 /**
- * Fetch recent Ethereum blocks
+ * Fetch recent Ethereum blocks using Blockchair
  */
 export async function fetchBlocks(limit: number, page: number): Promise<Block[]> {
-  console.log('Using Etherscan API key:', ETHERSCAN_API_KEY ? ETHERSCAN_API_KEY.slice(0, 8) + '...' : 'NONE');
-
-  const blockNumResponse = await fetchWithTimeout(
-    `${API_URLS.ETHERSCAN}?chainid=1&module=proxy&action=eth_blockNumber&apikey=${ETHERSCAN_API_KEY}`
+  // Blockchair returns latest blocks in a single call
+  const offset = (page - 1) * limit;
+  const response = await fetchWithTimeout(
+    `${API_URLS.BLOCKCHAIR}/ethereum/blocks?limit=${Math.min(limit, 25)}&offset=${offset}&s=id(desc)`
   );
-  const blockNumData = await blockNumResponse.json();
-  console.log('Etherscan response:', JSON.stringify(blockNumData));
+  const data = await response.json();
 
-  if (!blockNumData.result || blockNumData.result === 'Max rate limit reached') {
-    throw new Error('Etherscan rate limited');
+  if (!data.data || data.data.length === 0) {
+    throw new Error('No Ethereum blocks retrieved from Blockchair');
   }
 
-  const latestBlock = parseInt(blockNumData.result, 16);
-  if (isNaN(latestBlock)) {
-    throw new Error('Invalid block number from Etherscan: ' + blockNumData.result);
-  }
-
-  const startBlock = latestBlock - (page - 1) * limit;
-  const blocks: Block[] = [];
-
-  // Fetch blocks (limited to 10 to avoid rate limits)
-  for (let i = 0; i < Math.min(limit, 10); i++) {
-    const blockNum = startBlock - i;
-    const blockHex = '0x' + blockNum.toString(16);
-
-    try {
-      const blockResponse = await fetchWithTimeout(
-        `${API_URLS.ETHERSCAN}?chainid=1&module=proxy&action=eth_getBlockByNumber&tag=${blockHex}&boolean=false&apikey=${ETHERSCAN_API_KEY}`
-      );
-      const blockData = await blockResponse.json();
-
-      if (blockData.result && blockData.result.number) {
-        blocks.push({
-          number: parseInt(blockData.result.number, 16),
-          hash: blockData.result.hash,
-          timestamp: parseInt(blockData.result.timestamp, 16),
-          transactionCount: blockData.result.transactions?.length || 0,
-          miner: blockData.result.miner,
-          size: parseInt(blockData.result.size, 16),
-          gasUsed: parseInt(blockData.result.gasUsed, 16),
-          gasLimit: parseInt(blockData.result.gasLimit, 16),
-          parentHash: blockData.result.parentHash,
-          reward: '2.0',
-          chain: 'ethereum',
-        });
-      }
-    } catch (e) {
-      console.error(`Error fetching block ${blockNum}:`, e);
-    }
-  }
-
-  if (blocks.length === 0) {
-    throw new Error('No blocks retrieved from Etherscan');
-  }
-
-  return blocks;
+  return data.data.map((block: any) => ({
+    number: block.id,
+    hash: block.hash,
+    timestamp: Math.floor(new Date(block.time).getTime() / 1000),
+    transactionCount: block.transaction_count || 0,
+    miner: block.miner || 'Unknown',
+    size: block.size || 0,
+    gasUsed: block.gas_used || 0,
+    gasLimit: block.gas_limit || 30000000,
+    parentHash: '', // Blockchair doesn't return parent hash in list
+    reward: (block.generation / 1e18).toFixed(4), // Convert wei to ETH
+    chain: 'ethereum' as const,
+  }));
 }
 
 /**
  * Generate mock Ethereum blocks for fallback
  */
 export function getMockBlocks(limit: number, page: number): Block[] {
-  return Array.from({ length: 10 }, (_, i) => ({
+  return Array.from({ length: Math.min(limit, 10) }, (_, i) => ({
     number: 21300000 - (page - 1) * limit - i,
     hash: `0x${(Math.random().toString(16) + Math.random().toString(16)).slice(2, 66)}`,
     timestamp: Math.floor(Date.now() / 1000) - i * 12,
@@ -139,27 +103,28 @@ export function getMockBlocks(limit: number, page: number): Block[] {
  * Fetch a single Ethereum block by number
  */
 export async function fetchBlock(blockNumber: string): Promise<Block | null> {
-  const blockHex = '0x' + parseInt(blockNumber).toString(16);
   const response = await fetchWithTimeout(
-    `${API_URLS.ETHERSCAN}?module=proxy&action=eth_getBlockByNumber&tag=${blockHex}&boolean=true&apikey=${ETHERSCAN_API_KEY}`
+    `${API_URLS.BLOCKCHAIR}/ethereum/dashboards/block/${blockNumber}`
   );
   const data = await response.json();
 
-  if (!data.result) {
+  if (!data.data || !data.data[blockNumber]) {
     return null;
   }
 
+  const block = data.data[blockNumber].block;
+
   return {
-    number: parseInt(data.result.number, 16),
-    hash: data.result.hash,
-    timestamp: parseInt(data.result.timestamp, 16),
-    transactionCount: data.result.transactions?.length || 0,
-    miner: data.result.miner,
-    size: parseInt(data.result.size, 16),
-    gasUsed: parseInt(data.result.gasUsed, 16),
-    gasLimit: parseInt(data.result.gasLimit, 16),
-    parentHash: data.result.parentHash,
-    reward: '2.0',
+    number: block.id,
+    hash: block.hash,
+    timestamp: Math.floor(new Date(block.time).getTime() / 1000),
+    transactionCount: block.transaction_count || 0,
+    miner: block.miner || 'Unknown',
+    size: block.size || 0,
+    gasUsed: block.gas_used || 0,
+    gasLimit: block.gas_limit || 30000000,
+    parentHash: '', // Can be fetched separately if needed
+    reward: (block.generation / 1e18).toFixed(4),
     chain: 'ethereum',
   };
 }
@@ -168,29 +133,31 @@ export async function fetchBlock(blockNumber: string): Promise<Block | null> {
  * Fetch transactions for a specific block
  */
 export async function fetchBlockTransactions(blockNumber: string): Promise<any[]> {
-  const blockHex = '0x' + parseInt(blockNumber).toString(16);
   const response = await fetchWithTimeout(
-    `${API_URLS.ETHERSCAN}?module=proxy&action=eth_getBlockByNumber&tag=${blockHex}&boolean=true&apikey=${ETHERSCAN_API_KEY}`
+    `${API_URLS.BLOCKCHAIR}/ethereum/dashboards/block/${blockNumber}?limit=50`
   );
   const data = await response.json();
 
-  if (!data.result || !data.result.transactions) {
+  if (!data.data || !data.data[blockNumber] || !data.data[blockNumber].transactions) {
     return [];
   }
 
-  return data.result.transactions.slice(0, 50).map((tx: any) => ({
+  const blockData = data.data[blockNumber];
+  const timestamp = Math.floor(new Date(blockData.block.time).getTime() / 1000);
+
+  return blockData.transactions.map((tx: any) => ({
     hash: tx.hash,
-    blockNumber: parseInt(tx.blockNumber, 16),
-    timestamp: parseInt(data.result.timestamp, 16),
-    from: tx.from,
-    to: tx.to || 'Contract Creation',
-    value: tx.value,
-    fee: (parseInt(tx.gas, 16) * parseInt(tx.gasPrice, 16)).toString(),
-    gasPrice: (parseInt(tx.gasPrice, 16) / 1e9).toFixed(2),
-    gasUsed: parseInt(tx.gas, 16),
-    status: 'confirmed',
+    blockNumber: parseInt(blockNumber),
+    timestamp,
+    from: tx.sender,
+    to: tx.recipient || 'Contract Creation',
+    value: tx.value?.toString() || '0',
+    fee: tx.fee?.toString() || '0',
+    gasPrice: tx.gas_price ? (tx.gas_price / 1e9).toFixed(2) : '0',
+    gasUsed: tx.gas_used || 0,
+    status: tx.failed ? 'failed' : 'confirmed',
     confirmations: 100,
-    input: tx.input,
+    input: tx.input_hex || '0x',
     chain: 'ethereum',
   }));
 }

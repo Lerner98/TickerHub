@@ -1,6 +1,7 @@
 import { cn, formatCurrency, formatPercentage, formatNumber } from '@/lib/utils';
 import { GlassCard } from './GlassCard';
 import { CryptoIcon } from './CryptoIcon';
+import { WatchlistButton } from './WatchlistButton';
 import { Badge } from '@/components/ui/badge';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import type { PriceData } from '@shared/schema';
@@ -40,20 +41,23 @@ export function PriceCard({ coin, rank }: PriceCardProps) {
             <p className="text-sm text-muted-foreground uppercase">{coin.symbol}</p>
           </div>
         </div>
-        <Badge 
-          variant={isPositive ? "default" : "destructive"}
-          className={cn(
-            "gap-1",
-            isPositive && "bg-accent/20 text-accent border-accent/30"
-          )}
-        >
-          {isPositive ? (
-            <TrendingUp className="w-3 h-3" />
-          ) : (
-            <TrendingDown className="w-3 h-3" />
-          )}
-          {formatPercentage(coin.priceChangePercentage24h)}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <WatchlistButton assetId={coin.id} assetType="crypto" />
+          <Badge
+            variant={isPositive ? "default" : "destructive"}
+            className={cn(
+              "gap-1",
+              isPositive && "bg-accent/20 text-accent border-accent/30"
+            )}
+          >
+            {isPositive ? (
+              <TrendingUp className="w-3 h-3" />
+            ) : (
+              <TrendingDown className="w-3 h-3" />
+            )}
+            {formatPercentage(coin.priceChangePercentage24h)}
+          </Badge>
+        </div>
       </div>
 
       <div className="mb-4">

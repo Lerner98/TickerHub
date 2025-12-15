@@ -1,6 +1,7 @@
 import { useParams, Link } from 'wouter';
 import { Header } from '@/components/layout';
 import { GlassCard } from '@/components/GlassCard';
+import { StockChart } from '@/components/StockChart';
 import { FullPageLoading } from '@/components/LoadingState';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +12,6 @@ import {
   Building2,
   TrendingUp,
   TrendingDown,
-  DollarSign,
   BarChart3,
   Clock,
   Activity,
@@ -154,15 +154,8 @@ export default function StockPage() {
                 </GlassCard>
               </div>
 
-              <GlassCard className="p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <DollarSign className="w-5 h-5 text-primary" />
-                  <h2 className="font-semibold">Price Performance</h2>
-                </div>
-                <div className="h-48 flex items-center justify-center text-muted-foreground">
-                  <p>Historical chart coming soon</p>
-                </div>
-              </GlassCard>
+              {/* TradingView-style Chart */}
+              <StockChart symbol={symbol} />
             </>
           ) : (
             <GlassCard className="p-8 text-center">
