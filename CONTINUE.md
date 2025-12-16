@@ -1,325 +1,526 @@
 # TickerHub - Continuation Guide
 
-> Created: December 8, 2025
-> Branch: `feature/stock-market-expansion`
-> Status: Phase 2.5 Testing Infrastructure COMPLETE - Ready for Phase 3
+> **Last Updated:** December 16, 2025
+> **Current Version:** 1.4.0
+> **Status:** Phase 4 COMPLETE - Ready for Phase 4D (High-Value FMP Data)
 
 ---
 
-## What Was Completed
+## Current State Summary
 
-### Phase 1: Data Layer (DONE)
-- Finnhub API integration with circuit breaker
-- Mock data system for development
-- StockAsset unified types
-- `/api/stocks` endpoints fully functional
+### What's Working (v1.4.0)
 
-### Phase 2: UI Integration (DONE)
-- `StockCard.tsx` - Matches PriceCard visual style
-- `StockPage.tsx` - Detail view for individual stocks
-- Dashboard stocks section - Shows top 10 stocks
-- Header search dropdown - Searches stocks by symbol
-- `useStocks` hooks - React Query integration
-- ESM compatibility fixes for server modules
+| Feature | Status | Provider |
+|---------|--------|----------|
+| Stock Quotes | **DONE** | Twelve Data (primary) + Finnhub (fallback) |
+| Stock Charts | **DONE** | Twelve Data (1D, 7D, 30D, 1Y) |
+| Profile Enrichment | **DONE** | Finnhub (Market Cap, Sector) |
+| **Market Movers** | **DONE** | FMP (gainers/losers/actives) |
+| **Stock News** | **DONE** | FMP (per-symbol news) |
+| **Company Profiles** | **DONE** | FMP (CEO, employees, description) |
+| Crypto Prices | **DONE** | CoinGecko |
+| Blockchain Explorer | **DONE** | Blockchair |
+| Google OAuth | **DONE** | Better Auth |
+| Watchlist | **DONE** | PostgreSQL + Drizzle |
+| Market Hours | **DONE** | Client-side calculations |
 
-### Documentation (DONE)
-- VSCode format-on-save documented in `claude.md`
-- `docs/core-knowledge/DEVELOPMENT_EFFICIENCY.md`
-- `docs/core-knowledge/CONTEXT_MANAGEMENT.md`
+### Recent Changes (v1.4.0)
 
-### Phase 2.5: Testing Infrastructure (DONE - 2025-12-09)
-- **69 tests passing** across 6 test files
-- **Coverage thresholds met:** 69.66% statements, 54.46% branches, 76.82% functions, 70.17% lines
-- Vitest + Supertest + MSW stack implemented
-- API integration tests for `/api/stocks`, `/api/prices`, `/api/health`
-- Unit tests for `rateLimiter`, `errorHandler`, `cache`
-- MSW handlers mock CoinGecko, Finnhub, Etherscan, Blockchain.info
-- `environmentMatchGlobs` for hybrid Node/jsdom environments
+1. **FMP Market Movers**: Real top gainers, losers, and most active stocks
+2. **Stock News Tab**: Real news articles per stock with thumbnails
+3. **Company Profile Tab**: Full company info (CEO, employees, description, dividends)
+4. **TopStocksWithFilter**: Fetches real FMP data with local fallback
 
 ---
 
-## Next Steps
+## Implementation Phases (Master Checklist)
 
-### Phase 3: The Persistence Layer (CURRENT)
-**Goal:** Transition from a public dashboard to a personalized platform.
+> All phases with detailed step-by-step checklists
 
-#### Selected Stack
-| Component | Choice | Rationale |
-|-----------|--------|-----------|
-| **Database** | **Neon** | Serverless Postgres. Scales to zero. **Note:** Free tier PITR is ~6 hours. |
-| **ORM** | **Drizzle** | Type-safe. Zero-dependency on runtime. Uses standard SQL migrations. |
-| **Auth** | **Better Auth** | Successor to Lucia. Self-hosted. Works natively with our ESM build. |
+---
 
-#### Technical Constraints & Standards
+### Phase 4: FMP Integration (v1.4.0) - COMPLETE ✓
 
-**1. Dual Connection Strategy (Critical for Neon+Drizzle):**
-We must maintain two environment variables to prevent migration failures:
-```env
-DATABASE_URL=postgresql://...?sslmode=require           # Pooled - for App (port 6543)
-DATABASE_URL_UNPOOLED=postgresql://...?sslmode=require  # Direct - for Drizzle Kit (port 5432)
-```
-- **Pooled connection:** Used by Express app for runtime queries (handles concurrency)
-- **Direct connection:** Used by `drizzle-kit` for migrations (poolers hate schema changes)
+**Goal:** Real market movers + Stock News + Company Info + Earnings
 
-**2. Migration Workflow:**
-- Dev: `npm run db:generate` (Create SQL) → `npm run db:migrate` (Apply)
-- **Rule:** No `db:push` in production. Ever.
+> **Tested:** December 16, 2025 - All endpoints returning 200 OK
 
-**3. Backups:**
-- **Constraint:** Neon Free Tier only supports ~6 hours of Point-in-Time Recovery (PITR)
-- **Action:** For major milestones, perform manual `pg_dump` to local storage
-- **Paid tiers:** Launch ($19/mo) = 7 days, Enterprise = 30 days
+#### 4A: Market Movers ✓
+- [x] Add `FMP_API_KEY` to `.env` and `.env.example`
+- [x] Add `financialmodelingprep.com` to SSRF allowlist (`apiClient.ts`)
+- [x] Create `server/api/stocks/fmpService.ts`
+- [x] Implement `getTopGainers()` with 5min cache
+- [x] Implement `getTopLosers()` with 5min cache
+- [x] Implement `getMostActive()` with 5min cache
+- [x] Add routes: `GET /api/stocks/movers/gainers`
+- [x] Add routes: `GET /api/stocks/movers/losers`
+- [x] Add routes: `GET /api/stocks/movers/actives`
+- [x] Update `TopStocksWithFilter` to fetch real movers
+- [x] Add fallback to local sorting if FMP unavailable
+- [x] **TESTED** - Returns real market movers
 
-#### Database Schema (Initial)
+#### 4B: Stock News ✓
+- [x] Implement `getStockNews(symbol)` in fmpService
+- [x] Add route: `GET /api/stocks/:symbol/news`
+- [x] Create `NewsCard.tsx` component
+- [x] Create `NewsList.tsx` component
+- [x] Update StockPage News tab with real news
+- [x] Add loading/empty states for news
+- [x] **TESTED** - Returns real news articles
+
+#### 4C: Company Info ✓
+- [x] Implement `getCompanyProfile(symbol)` in fmpService
+- [x] Add route: `GET /api/stocks/:symbol/profile`
+- [x] Create `CompanyProfile.tsx` component
+- [x] Add CEO, employees, description, website
+- [x] Add dividend info if available
+- [ ] Add analyst ratings (available in Phase 4D)
+- [x] Update StockPage About tab
+- [x] **TESTED** - Returns full company profiles
+
+#### 4D: High-Value FMP Data (Retail Edge) - BACKEND COMPLETE ✓
+> Maximize free tier (250 calls/day) for institutional-grade data. See [FMP.md](../FMP.md)
+> **Backend Implemented:** December 16, 2025 - All services and routes ready
+
+**Earnings & Calendar Events - Backend ✓**
+- [x] `getEarningsCalendar(from, to)` - upcoming earnings dates with EPS estimates
+- [x] `getStockEarnings(symbol)` - EPS estimates vs actuals
+- [x] `getDividendCalendar(from, to)` - upcoming dividend payments
+- [x] `getIPOCalendar(from, to)` - upcoming IPOs
+- [x] `getStockSplitsCalendar(from, to)` - upcoming splits
+- [x] Routes: `/api/stocks/calendar/earnings`, `/dividends`, `/ipos`, `/splits`
+- [x] Route: `/api/stocks/:symbol/earnings` - per-stock earnings history
+- [ ] Components: `EarningsCalendar`, `DividendCalendar`, `IPOCalendar`
+- [ ] Dashboard widget: "Upcoming Events" unified calendar
+
+**Analyst Intelligence (Free!) - Backend ✓**
+- [x] `getAnalystEstimates(symbol)` - revenue/EPS projections
+- [x] `getPriceTargetConsensus(symbol)` - high/low/median targets
+- [x] `getPriceTargets(symbol)` - individual analyst targets
+- [x] `getStockGrades(symbol)` - upgrade/downgrade history
+- [x] `getGradeConsensus(symbol)` - buy/hold/sell distribution
+- [x] Routes: `/api/stocks/:symbol/estimates`, `/price-target`, `/price-targets`, `/grades`, `/consensus`
+- [ ] Components: `AnalystRatings`, `PriceTargetGauge`, `GradesHistory`
+- [ ] StockPage: Add "Analyst" tab with all ratings data
+
+**Market Performance & Sectors - Backend ✓**
+- [x] `getSectorPerformance()` - sector heatmap data
+- [x] Route: `/api/stocks/sectors`
+- [ ] Components: `SectorHeatmap`, `IndustryPerformance`
+- [ ] Dashboard: Sector performance widget
+
+**News Aggregation - Backend ✓**
+- [x] `getGeneralNews(limit)` - market-wide news feed
+- [x] Route: `/api/stocks/news`
+- [ ] Components: `MarketNews`
+- [ ] Dashboard: Market news ticker/widget
+
+**Financial Statements (Deep Dive) - Backend ✓**
+- [x] `getIncomeStatement(symbol, period, limit)` - revenue, net income, margins
+- [x] `getBalanceSheet(symbol, period, limit)` - assets, liabilities, equity
+- [x] `getCashFlow(symbol, period, limit)` - operating/investing/financing cash
+- [x] `getKeyMetrics(symbol, period, limit)` - P/E, EV/EBITDA, ROE, etc.
+- [x] Routes: `/api/stocks/:symbol/income`, `/balance-sheet`, `/cash-flow`, `/metrics`
+- [ ] Components: `FinancialsTable`, `RatiosCard`, `MetricsOverview`
+- [ ] StockPage: Add "Financials" tab
+
+**Institutional Tracking (13F) - Backend ✓**
+- [x] `getInstitutionalHolders(symbol)` - who owns this stock
+- [x] Route: `/api/stocks/:symbol/institutions`
+- [ ] Components: `InstitutionalOwners`, `HedgeFundActivity`
+- [ ] StockPage: Add to About tab or new "Ownership" tab
+
+**AI Integration Points (for Gemini)**
+> These FMP endpoints provide structured data perfect for AI analysis:
+- Analyst estimates + price targets → AI can explain consensus
+- Financial statements → AI can summarize health/trends
+- Earnings transcripts → AI can extract key insights
+- News + press releases → AI can summarize sentiment
+
+**Phase 4D API Endpoints Summary:**
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/stocks/sectors` | Sector performance for heatmap |
+| `GET /api/stocks/news` | General market news |
+| `GET /api/stocks/calendar/earnings` | Upcoming earnings (30 days) |
+| `GET /api/stocks/calendar/dividends` | Upcoming dividends |
+| `GET /api/stocks/calendar/ipos` | Upcoming IPOs |
+| `GET /api/stocks/calendar/splits` | Upcoming stock splits |
+| `GET /api/stocks/:symbol/estimates` | Analyst revenue/EPS estimates |
+| `GET /api/stocks/:symbol/price-target` | Price target consensus |
+| `GET /api/stocks/:symbol/price-targets` | Individual analyst targets |
+| `GET /api/stocks/:symbol/grades` | Upgrade/downgrade history |
+| `GET /api/stocks/:symbol/consensus` | Buy/hold/sell distribution |
+| `GET /api/stocks/:symbol/earnings` | Historical earnings vs estimates |
+| `GET /api/stocks/:symbol/income` | Income statement |
+| `GET /api/stocks/:symbol/balance-sheet` | Balance sheet |
+| `GET /api/stocks/:symbol/cash-flow` | Cash flow statement |
+| `GET /api/stocks/:symbol/metrics` | Key financial metrics |
+| `GET /api/stocks/:symbol/institutions` | Institutional holders |
+
+---
+
+### Phase 5: AI Features (v1.4.0)
+
+**Goal:** Natural language search + AI insights
+
+#### 5A: Gemini Setup
+- [ ] Install `@google/generative-ai`
+- [ ] Add `GEMINI_API_KEY` to `.env`
+- [ ] Add `generativelanguage.googleapis.com` to SSRF allowlist
+- [ ] Create `server/api/ai/geminiClient.ts`
+- [ ] Create `server/api/ai/prompts.ts`
+- [ ] Implement rate limiting (15 RPM free tier)
+- [ ] Add Groq fallback (`api.groq.com`)
+
+#### 5B: Natural Language Search
+- [ ] Create `server/api/ai/service.ts`
+- [ ] Implement `parseSearchQuery()` function
+- [ ] Add route: `POST /api/ai/search`
+- [ ] Create `client/src/hooks/useAISearch.ts`
+- [ ] Create `SmartSearchBar.tsx` component
+- [ ] Create `SearchResults.tsx` component
+- [ ] Integrate into Header search
+
+#### 5C: AI Stock Summaries
+- [ ] Implement `generateStockSummary(symbol)` function
+- [ ] Add route: `GET /api/ai/summary/:symbol`
+- [ ] Create `client/src/hooks/useStockSummary.ts`
+- [ ] Create `AIInsightsCard.tsx` component
+- [ ] Create `SentimentGauge.tsx` component
+- [ ] Add to StockPage About tab
+- [ ] Cache AI responses (10min TTL)
+
+---
+
+### Phase 6: Testing Expansion (v1.4.0)
+
+**Goal:** Contract tests + Zod schemas + CI/CD
+
+#### 6A: Zod Schema Validation
+- [ ] Install `zod`
+- [ ] Create `server/lib/schemas/crypto.ts`
+- [ ] Create `server/lib/schemas/stocks.ts`
+- [ ] Create `server/lib/schemas/fmp.ts`
+- [ ] Add runtime validation to API responses
+- [ ] Add Zod error handling middleware
+
+#### 6B: Contract Tests
+- [ ] Create `server/test/contracts/` directory
+- [ ] Add CoinGecko contract test
+- [ ] Add Twelve Data contract test
+- [ ] Add Finnhub contract test
+- [ ] Add FMP contract test
+- [ ] Add `npm run test:contracts` script
+
+#### 6C: CI/CD & Health Checks
+- [ ] Create `.github/workflows/test.yml`
+- [ ] Create `.github/workflows/api-health.yml`
+- [ ] Add daily cron for contract tests
+- [ ] Add README badge for test status
+- [ ] Add README badge for API health
+
+#### 6D: Component Tests
+- [ ] Add MSW handlers for Twelve Data
+- [ ] Add MSW handlers for FMP
+- [ ] Add tests for StockChart component
+- [ ] Add tests for StockPage tabs
+- [ ] Add tests for TopStocksWithFilter
+
+---
+
+### Phase 7: Documentation (v1.4.0)
+
+**Goal:** Swagger docs + README polish
+
+#### 7A: Swagger/OpenAPI
+- [ ] Install `swagger-jsdoc` and `swagger-ui-express`
+- [ ] Create `server/lib/swagger.ts` config
+- [ ] Add JSDoc annotations to all routes
+- [ ] Mount Swagger UI at `/api/docs`
+- [ ] Document all request/response schemas
+
+#### 7B: README Polish
+- [ ] Add API documentation section
+- [ ] Add premium upgrade paths
+- [ ] Add architecture diagram
+- [ ] Add screenshots/GIFs
+- [ ] Add contributing guide
+
+---
+
+### Phase 8: User Features (v1.5.0)
+
+**Goal:** Portfolio + Alerts
+
+#### 8A: Portfolio Tracking
+- [ ] Create `portfolios` table in DB
+- [ ] Create `holdings` table in DB
+- [ ] Add CRUD routes for portfolios
+- [ ] Add routes for adding/removing holdings
+- [ ] Create `PortfolioPage.tsx`
+- [ ] Create `HoldingsTable.tsx`
+- [ ] Calculate P&L and performance
+- [ ] Add diversification chart
+
+#### 8B: Price Alerts
+- [ ] Create `alerts` table in DB
+- [ ] Add CRUD routes for alerts
+- [ ] Create `AlertsPage.tsx`
+- [ ] Create `AlertForm.tsx` component
+- [ ] Implement Service Worker for push
+- [ ] Add browser notification permission
+- [ ] Add email notification (optional)
+
+#### 8C: Multi-device Sync
+- [ ] Ensure watchlist syncs via DB
+- [ ] Ensure portfolio syncs via DB
+- [ ] Ensure alerts sync via DB
+- [ ] Add real-time updates (polling/websocket)
+
+---
+
+### Phase 9: Advanced Features (v2.0.0)
+
+**Goal:** Pro-level analytics
+
+#### 9A: Advanced Charting
+- [ ] Add candlestick chart option
+- [ ] Add volume overlay
+- [ ] Add moving averages (SMA, EMA)
+- [ ] Add RSI indicator
+- [ ] Add MACD indicator
+- [ ] Add drawing tools
+
+#### 9B: Cross-Asset Correlation
+- [ ] Create correlation calculation service
+- [ ] Add BTC vs NASDAQ correlation
+- [ ] Create heatmap visualization
+- [ ] Add hedging suggestions
+
+#### 9C: Tax Reports
+- [ ] Track cost basis per holding
+- [ ] Calculate realized gains
+- [ ] Generate tax report PDF
+- [ ] Support multi-currency
+
+#### 9D: Time-Shifted Comparison
+- [ ] Overlay historical patterns
+- [ ] Compare earnings across quarters
+- [ ] Pattern matching visualization
+
+---
+
+## API Provider Summary
+
+| Provider | Purpose | Free Tier | Premium |
+|----------|---------|-----------|---------|
+| **Twelve Data** | Primary stock data | 800/day | $29/mo (12K/day) |
+| **Finnhub** | Fallback + profiles | 60/min | $50/mo |
+| **CoinGecko** | Crypto prices | 30/min | N/A |
+| **Blockchair** | Blockchain explorer | Unlimited basic | N/A |
+| **FMP** | Market movers | 250/day | $15/mo |
+| **Gemini** | AI features | 1,500/day | Pay-as-you-go |
+
+**Total Free Tier Cost: $0**
+**Full Premium: ~$95/mo**
+
+---
+
+## Technical Debt
+
+### To Address
+1. **P/E Ratio**: Shows "N/A" when not available from API
+2. **News Tab**: Currently placeholder, needs FMP news integration
+3. **Test Coverage**: Add tests for new chart and tab components
+
+### Completed
+- [x] Stock search by name (Fuse.js)
+- [x] Loading states for dashboard
+- [x] Error handling in StockPage
+- [x] ESM compatibility for server
+
+---
+
+## Testing Strategy (Professional Standard)
+
+> For data-heavy apps relying on external APIs, the key challenges are **API Rot** and **Data Drift**.
+
+### The Stack (Already Implemented in v1.1.0)
+
+| Capability | Tool | Purpose |
+|------------|------|---------|
+| **Runner** | Vitest | Fast, native TS support, Jest-compatible API |
+| **API Mocking** | MSW (Mock Service Worker) | Intercepts network requests at the layer level |
+| **HTTP Testing** | Supertest | Integration tests for Express routes |
+| **Coverage** | Vitest Coverage | 69.66% statements, 54.46% branches |
+
+### Test Types for TickerHub
+
+| Test Type | What It Checks | Data Source | Frequency |
+|-----------|----------------|-------------|-----------|
+| **Contract Tests** | "Is the API returning expected JSON structure?" | Real Live API | Daily (Cron) |
+| **Feature Tests** | "Does the app handle data correctly (red/green)?" | Mocked Data | On every commit |
+| **Unit Tests** | "Does this function work in isolation?" | None (pure logic) | On every commit |
+
+### Contract Testing (Anti-Rot Defense)
+
+Since we don't control external APIs (Twelve Data, Finnhub, CoinGecko), the biggest risk is the API changing its format.
+
 ```typescript
-// server/db/schema.ts
-export const users = pgTable('users', {
-  id: text('id').primaryKey(),
-  email: text('email').unique().notNull(),
-  name: text('name'),
-  createdAt: timestamp('created_at').defaultNow(),
-});
+// Example: Contract test for CoinGecko
+test('CoinGecko API contract', async () => {
+  const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
+  const data = await response.json();
 
-export const sessions = pgTable('sessions', {
-  id: text('id').primaryKey(),
-  userId: text('user_id').references(() => users.id),
-  expiresAt: timestamp('expires_at').notNull(),
-});
-
-export const verifications = pgTable('verifications', {
-  id: text('id').primaryKey(),
-  identifier: text('identifier').notNull(),
-  value: text('value').notNull(),
-  expiresAt: timestamp('expires_at').notNull(),
-});
-
-export const watchlists = pgTable('watchlists', {
-  id: serial('id').primaryKey(),
-  userId: text('user_id').references(() => users.id).notNull(),
-  assetId: text('asset_id').notNull(),       // "AAPL" or "bitcoin"
-  assetType: text('asset_type').notNull(),   // "stock" | "crypto"
-  addedAt: timestamp('added_at').defaultNow(),
+  // DO NOT assert: price === 50000 (volatile!)
+  // DO assert: structure is correct
+  expect(data.bitcoin).toBeDefined();
+  expect(typeof data.bitcoin.usd).toBe('number');
+  expect(data.bitcoin.usd).toBeGreaterThan(0);
 });
 ```
 
-#### Files to Create
+### Schema Validation with Zod (Planned)
+
+For runtime safety, validate all API responses:
+
+```typescript
+import { z } from 'zod';
+
+const CryptoResponseSchema = z.object({
+  id: z.string(),
+  symbol: z.string(),
+  current_price: z.number().positive(),
+  market_cap: z.number(),
+  price_change_percentage_24h: z.number(),
+});
+
+// If API changes, Zod throws immediately with clear error
+const validated = CryptoResponseSchema.parse(apiResponse);
 ```
-server/
-├── db/
-│   ├── index.ts          # Drizzle client (Neon connection)
-│   ├── schema.ts         # Table definitions
-│   └── migrate.ts        # Migration runner script
-├── auth/
-│   └── index.ts          # Better Auth configuration
-└── api/
-    └── watchlist/
-        └── routes.ts     # CRUD endpoints (protected)
-drizzle/
-└── migrations/           # Generated SQL files
-drizzle.config.ts         # Drizzle Kit configuration
+
+### MSW Handlers (Existing)
+
+Already implemented in `server/test/mocks/handlers.ts`:
+- CoinGecko mock responses
+- Finnhub mock responses
+- Twelve Data mock responses (add if missing)
+
+### Daily Health Check (Autonomous)
+
+**Goal:** Know immediately if an API breaks, not days later.
+
+```yaml
+# .github/workflows/api-health.yml
+name: API Health Check
+on:
+  schedule:
+    - cron: '0 8 * * *'  # Every day at 8 AM
+jobs:
+  contract-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: npm run test:contracts
 ```
 
-#### Implementation Steps
-- [x] **Pre-requisite:** Convert backend build to ESM (Completed 2025-12-09)
-- [ ] **Infra:** Provision Neon project & get keys (Pooled + Direct)
-- [ ] **Schema:** Define `users`, `sessions`, `verifications`, `watchlists`
-- [ ] **Auth:** Mount Better Auth middleware
-- [ ] **API:** Create CRUD endpoints for Watchlist
-- [ ] **Test:** Neon connection from Docker container
-- [ ] **CI/CD:** Confirm Drizzle migrations run in pipeline
+### Implementation Checklist
+
+- [x] Vitest + Supertest + MSW setup (v1.1.0)
+- [x] 69 tests across 6 test files
+- [x] MSW handlers for CoinGecko, Finnhub
+- [ ] Add Zod schemas for API response validation
+- [ ] Create contract test suite (separate from unit tests)
+- [ ] GitHub Action for daily API health checks
+- [ ] Add MSW handlers for Twelve Data
+- [ ] Add tests for StockChart component
+- [ ] Add tests for StockPage tabs
 
 ---
 
-### Phase 4: User Features (Requires Phase 3)
-1. **Watchlist**
-   - Save favorite assets (crypto + stocks)
-   - Dashboard widget
-   - Sync across devices
+## Long-Term Roadmap
 
-2. **Portfolio Tracking**
-   - Track holdings and performance
-   - P&L calculations
-   - Diversification view
+### v1.4.0 - AI & Market Movers
+- FMP real market movers
+- AI natural language search
+- AI stock summaries
+- Swagger/OpenAPI docs
 
-3. **Price Alerts**
-   - Set price thresholds
-   - Browser notifications (Service Worker)
-   - Email notifications (optional)
+### v1.5.0 - User Features
+- Portfolio tracking
+- Price alerts (browser + email)
+- Multi-device watchlist sync
 
-### Phase 5: AI Integration
-1. **Natural Language Queries**
-   - "What's Apple stock doing today?"
-   - "Compare TSLA vs BTC performance"
-   - Use Gemini/Groq free tiers
-
-2. **Market Insights**
-   - AI-generated summaries
-   - Trend detection
-   - Anomaly alerts
-
-### Phase 6: Advanced Features
-1. **Stock Charts**
-   - Historical price chart (Finnhub candles)
-   - Timeframe selectors (1D, 1W, 1M, 3M, 1Y)
-
-2. **Enhanced Search**
-   - Search by company name
-   - Combined crypto + stock results
-   - Categorized results
-
-3. **Multi-Asset Dashboard**
-   - Custom layouts
-   - Widget system
+### v2.0.0 - Advanced Features
+- Cross-asset correlation engine
+- Advanced charting (candlestick, indicators)
+- Tax report generation
+- Time-shifted comparison
 
 ---
 
-## Technical Debt to Address
-
-1. **Stock Search by Name**
-   - Current: Only matches symbol (AAPL, MSFT)
-   - Fix: Also match against profile name
-
-2. **Loading States**
-   - Dashboard shows crypto loading only
-   - Should combine: `isLoading = pricesLoading || stocksLoading`
-
-3. **Error Handling in UI**
-   - StockPage: Handle API errors gracefully
-   - Show retry buttons
-
-4. **Test Coverage**
-   - Add tests for stock hooks
-   - Add tests for StockCard component
-
----
-
-## Architecture Considerations
-
-### For AI Integration
-- Use client-side API calls to Gemini/Groq
-- Implement rate limiting on client
-- Cache AI responses
-
-### For Watchlist
-- Start with localStorage
-- Later: User auth + database storage
-- Sync across devices (future)
-
-### For Alerts
-- Service Worker for background
-- Push notifications API
-- Fallback to polling
-
----
-
-## Quick Start Tomorrow
+## Environment Variables
 
 ```bash
-# 1. Ensure on feature branch
-git checkout feature/stock-market-expansion
+# Stock Data
+TWELVE_DATA_API_KEY=    # Primary stock provider
+FINNHUB_API_KEY=        # Fallback + profiles
+FMP_API_KEY=            # Market movers (Phase 4)
 
-# 2. Start dev server
-npm run dev
+# AI Features
+GEMINI_API_KEY=         # Natural language search (Phase 4)
 
-# 3. Test stocks API
-curl http://localhost:5000/api/stocks
-
-# 4. View dashboard
-# Open http://localhost:5000/dashboard
+# Database & Auth
+DATABASE_URL=           # Neon PostgreSQL (pooled)
+DATABASE_URL_UNPOOLED=  # For Drizzle migrations
+BETTER_AUTH_SECRET=     # Auth secret
+GOOGLE_CLIENT_ID=       # OAuth
+GOOGLE_CLIENT_SECRET=   # OAuth
 ```
 
 ---
 
-## Key Files for Reference
+## Quick Start
+
+```bash
+# Start development server
+cd TickerHub
+npm run dev
+
+# Test endpoints
+curl http://localhost:5000/api/stocks
+curl http://localhost:5000/api/stocks/AAPL
+curl http://localhost:5000/api/stocks/AAPL/chart?timeframe=30D
+
+# View app
+open http://localhost:5000
+```
+
+---
+
+## Key Files Reference
 
 | File | Purpose |
 |------|---------|
-| `claude.md` | Project context + rules |
-| `client/src/components/StockCard.tsx` | Stock card UI |
-| `client/src/pages/StockPage.tsx` | Stock detail page |
-| `client/src/components/layout/Header.tsx` | Search with dropdown |
-| `server/api/stocks/service.ts` | Stock data service |
-| `docs/STOCK_MARKET_EXPANSION.md` | Full expansion plan |
+| [CHANGELOG.md](CHANGELOG.md) | Version history |
+| [INTEGRATION_PLAN.md](INTEGRATION_PLAN.md) | AI + FMP integration plan |
+| [server/api/stocks/service.ts](server/api/stocks/service.ts) | Stock data service |
+| [client/src/pages/StockPage.tsx](client/src/pages/StockPage.tsx) | Stock detail page |
+| [client/src/components/StockChart.tsx](client/src/components/StockChart.tsx) | TradingView chart |
+| [server/lib/apiClient.ts](server/lib/apiClient.ts) | SSRF-protected fetch |
 
 ---
 
-## Decision Points for Tomorrow
+## Decision Points
 
-1. **Which Phase 3 feature first?**
-   - Stock charts (visual impact)
-   - Search enhancement (usability)
-   - Watchlist (user value)
+When continuing development:
 
-2. **AI Integration approach?**
-   - Start simple: single query endpoint
-   - Or build full conversational interface?
-
-3. **When to merge to main?**
-   - After Phase 3?
-   - After basic AI integration?
-   - Need production testing first?
+1. **FMP vs Local Sorting**: Implement FMP for real movers or keep local sorting?
+2. **AI Provider**: Gemini (free tier) vs Groq (fallback)?
+3. **News Source**: FMP news API or alternative?
 
 ---
 
-## Notes
-
-- Dev server runs on `http://localhost:5000`
-- Mock data is active in development (10 stocks)
-- VSCode format-on-save is active - work with it, not against it
-- All stock APIs tested and working
-
----
-
-## Long-Term Vision (Endgame)
-
-### Differentiation Strategy
-What makes TickerHub unique beyond "yet another dashboard":
-
-1. **Cross-Asset Correlation Engine**
-   - BTC vs NASDAQ correlation analysis
-   - Hedging suggestions
-   - Heatmap visualization
-   - *Why:* Institutional feature in a retail package
-
-2. **Time-Shifted Comparison**
-   - Overlay historical patterns on current charts
-   - "Compare AAPL post-earnings across 8 quarters"
-   - Pattern matching / visual backtesting
-
-3. **Smart Alerts with Context**
-   - Not just "price hit $X"
-   - "NVDA dropped 5% but sector is flat" (anomaly)
-   - Volume spike detection
-
-4. **Unified Tax Reports**
-   - Export realized gains
-   - Cost basis tracking across crypto + stocks
-   - Multi-currency support
-
-### The "4 Tabs → 1 Dashboard" Goal
-Replace:
-- Coinbase (crypto prices)
-- Yahoo Finance (stocks)
-- TradingView (charts)
-- Spreadsheet (portfolio tracking)
-
-### Infrastructure Scaling (When Needed)
-- Redis for distributed caching
-- Horizontal scaling considerations
-- CDN for static assets
-
-### Observability (Production)
-- Error tracking (Sentry)
-- Usage analytics
-- Performance monitoring
-
----
-
-## Sources & References
-
-- [Better Auth Docs](https://www.better-auth.com/docs)
-- [Drizzle ORM Docs](https://orm.drizzle.team/docs)
-- [Neon PostgreSQL Docs](https://neon.com/docs)
-- [Lucia Deprecation Notice](https://github.com/lucia-auth/lucia/discussions/1707)
-- [Drizzle Migrations Guide](https://orm.drizzle.team/docs/migrations)
-- [Neon Backup Guide](https://neon.com/docs/manage/backups)
+*Last generated: December 16, 2025*

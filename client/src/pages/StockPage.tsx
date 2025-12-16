@@ -1,25 +1,34 @@
 import { useParams, Link } from 'wouter';
+import { useState } from 'react';
 import { Header } from '@/components/layout';
 import { GlassCard } from '@/components/GlassCard';
 import { StockChart } from '@/components/StockChart';
 import { FullPageLoading } from '@/components/LoadingState';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { cn, formatCurrency, formatPercentage } from '@/lib/utils';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { NewsList, CompanyProfile } from '@/components/stock';
+import { cn, formatCurrency, formatPercentage, formatNumber } from '@/lib/utils';
 import { useStock } from '@/features/stocks';
 import {
   ArrowLeft,
   Building2,
   TrendingUp,
   TrendingDown,
-  BarChart3,
   Clock,
   Activity,
+  DollarSign,
+  PieChart,
+  Layers,
+  Newspaper,
+  Info,
+  LineChart,
 } from 'lucide-react';
 
 export default function StockPage() {
   const params = useParams<{ symbol: string }>();
   const symbol = params.symbol?.toUpperCase() || '';
+  const [activeTab, setActiveTab] = useState('overview');
 
   const { data: stock, isLoading } = useStock(symbol);
 
@@ -31,20 +40,28 @@ export default function StockPage() {
 
       <main className="flex-1 py-6">
         <div className="max-w-[1200px] mx-auto px-4 md:px-6 space-y-6">
+          {/* Header with back button and stock name */}
           <div className="flex items-center gap-4">
             <Link href="/dashboard">
               <Button variant="ghost" size="icon" data-testid="button-back">
                 <ArrowLeft className="w-4 h-4" />
               </Button>
             </Link>
-            <div>
+            <div className="flex-1">
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                   <Building2 className="w-5 h-5 text-primary" />
                 </div>
                 {stock?.name || symbol}
               </h1>
-              <p className="text-muted-foreground mt-1">{symbol}</p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="font-mono text-muted-foreground">{symbol}</span>
+                {stock?.exchange && (
+                  <Badge variant="outline" className="text-xs">
+                    {stock.exchange}
+                  </Badge>
+                )}
+              </div>
             </div>
           </div>
 
@@ -52,110 +69,149 @@ export default function StockPage() {
             <FullPageLoading />
           ) : stock ? (
             <>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <GlassCard className="p-6 lg:col-span-2" glow={isPositive ? 'accent' : 'none'}>
-                  <div className="flex items-start justify-between mb-6">
-                    <div>
-                      <p className="text-4xl font-bold tracking-tight">
-                        {formatCurrency(stock.price)}
-                      </p>
-                      <div className="flex items-center gap-2 mt-2">
-                        <Badge
-                          variant={isPositive ? 'default' : 'destructive'}
-                          className={cn(
-                            'gap-1',
-                            isPositive && 'bg-accent/20 text-accent border-accent/30'
-                          )}
-                        >
-                          {isPositive ? (
-                            <TrendingUp className="w-3 h-3" />
-                          ) : (
-                            <TrendingDown className="w-3 h-3" />
-                          )}
-                          {formatPercentage(stock.changePercent24h)}
-                        </Badge>
-                        <span className="text-sm text-muted-foreground">
-                          {isPositive ? '+' : ''}
-                          {formatCurrency(stock.change24h)} today
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm text-muted-foreground">Exchange</p>
-                      <p className="font-semibold">{stock.exchange}</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
-                      <div className="flex items-center gap-2 text-muted-foreground mb-2">
-                        <Clock className="w-4 h-4" />
-                        <span className="text-xs uppercase tracking-wide">Open</span>
-                      </div>
-                      <p className="font-semibold">
-                        {stock.open ? formatCurrency(stock.open) : '-'}
-                      </p>
-                    </div>
-
-                    <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
-                      <div className="flex items-center gap-2 text-muted-foreground mb-2">
-                        <Activity className="w-4 h-4" />
-                        <span className="text-xs uppercase tracking-wide">Prev Close</span>
-                      </div>
-                      <p className="font-semibold">
-                        {stock.previousClose ? formatCurrency(stock.previousClose) : '-'}
-                      </p>
-                    </div>
-
-                    <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
-                      <div className="flex items-center gap-2 text-muted-foreground mb-2">
-                        <TrendingUp className="w-4 h-4" />
-                        <span className="text-xs uppercase tracking-wide">High</span>
-                      </div>
-                      <p className="font-semibold">{formatCurrency(stock.high24h)}</p>
-                    </div>
-
-                    <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
-                      <div className="flex items-center gap-2 text-muted-foreground mb-2">
-                        <TrendingDown className="w-4 h-4" />
-                        <span className="text-xs uppercase tracking-wide">Low</span>
-                      </div>
-                      <p className="font-semibold">{formatCurrency(stock.low24h)}</p>
-                    </div>
-                  </div>
-                </GlassCard>
-
-                <GlassCard className="p-6">
-                  <h2 className="font-semibold mb-4 flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5 text-primary" />
-                    Market Info
-                  </h2>
-
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center py-2 border-b border-border/50">
-                      <span className="text-muted-foreground">Symbol</span>
-                      <span className="font-mono font-semibold">{stock.symbol}</span>
-                    </div>
-                    <div className="flex justify-between items-center py-2 border-b border-border/50">
-                      <span className="text-muted-foreground">Exchange</span>
-                      <span className="font-semibold">{stock.exchange}</span>
-                    </div>
-                    <div className="flex justify-between items-center py-2 border-b border-border/50">
-                      <span className="text-muted-foreground">Day Range</span>
-                      <span className="text-sm">
-                        {formatCurrency(stock.low24h)} - {formatCurrency(stock.high24h)}
+              {/* Price and key metrics card */}
+              <GlassCard className="p-6" glow={isPositive ? 'accent' : 'none'}>
+                {/* Price header */}
+                <div className="flex items-start justify-between mb-6">
+                  <div>
+                    <p className="text-4xl font-bold tracking-tight">
+                      {formatCurrency(stock.price)}
+                    </p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Badge
+                        variant={isPositive ? 'default' : 'destructive'}
+                        className={cn(
+                          'gap-1',
+                          isPositive && 'bg-accent/20 text-accent border-accent/30'
+                        )}
+                      >
+                        {isPositive ? (
+                          <TrendingUp className="w-3 h-3" />
+                        ) : (
+                          <TrendingDown className="w-3 h-3" />
+                        )}
+                        {formatPercentage(stock.changePercent24h)}
+                      </Badge>
+                      <span className="text-sm text-muted-foreground">
+                        {isPositive ? '+' : ''}
+                        {formatCurrency(stock.change24h)} today
                       </span>
                     </div>
-                    <div className="flex justify-between items-center py-2">
-                      <span className="text-muted-foreground">Type</span>
-                      <Badge variant="outline">Stock</Badge>
-                    </div>
                   </div>
-                </GlassCard>
-              </div>
+                </div>
 
-              {/* TradingView-style Chart */}
-              <StockChart symbol={symbol} />
+                {/* First row: Open, Prev Close, High, Low */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                  <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
+                    <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                      <Clock className="w-4 h-4" />
+                      <span className="text-xs uppercase tracking-wide">Open</span>
+                    </div>
+                    <p className="font-semibold">
+                      {stock.open ? formatCurrency(stock.open) : '-'}
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
+                    <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                      <Activity className="w-4 h-4" />
+                      <span className="text-xs uppercase tracking-wide">Prev Close</span>
+                    </div>
+                    <p className="font-semibold">
+                      {stock.previousClose ? formatCurrency(stock.previousClose) : '-'}
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
+                    <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                      <TrendingUp className="w-4 h-4" />
+                      <span className="text-xs uppercase tracking-wide">High</span>
+                    </div>
+                    <p className="font-semibold">{formatCurrency(stock.high24h)}</p>
+                  </div>
+
+                  <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
+                    <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                      <TrendingDown className="w-4 h-4" />
+                      <span className="text-xs uppercase tracking-wide">Low</span>
+                    </div>
+                    <p className="font-semibold">{formatCurrency(stock.low24h)}</p>
+                  </div>
+                </div>
+
+                {/* Second row: Market Cap, Volume, Sector, P/E Ratio */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
+                    <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                      <DollarSign className="w-4 h-4" />
+                      <span className="text-xs uppercase tracking-wide">Market Cap</span>
+                    </div>
+                    <p className="font-semibold">
+                      {stock.marketCap ? formatNumber(stock.marketCap) : 'N/A'}
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
+                    <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                      <Activity className="w-4 h-4" />
+                      <span className="text-xs uppercase tracking-wide">Volume</span>
+                    </div>
+                    <p className="font-semibold">
+                      {stock.volume24h > 0 ? formatNumber(stock.volume24h) : 'N/A'}
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
+                    <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                      <Layers className="w-4 h-4" />
+                      <span className="text-xs uppercase tracking-wide">Sector</span>
+                    </div>
+                    <p className="font-semibold text-sm truncate">
+                      {stock.sector || 'N/A'}
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
+                    <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                      <PieChart className="w-4 h-4" />
+                      <span className="text-xs uppercase tracking-wide">P/E Ratio</span>
+                    </div>
+                    <p className="font-semibold">
+                      {stock.peRatio ? stock.peRatio.toFixed(2) : 'N/A'}
+                    </p>
+                  </div>
+                </div>
+              </GlassCard>
+
+              {/* Tabs for Chart, News, About */}
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <TabsList className="grid w-full max-w-md grid-cols-3 mb-4">
+                  <TabsTrigger value="overview" className="gap-2">
+                    <LineChart className="w-4 h-4" />
+                    Chart
+                  </TabsTrigger>
+                  <TabsTrigger value="news" className="gap-2">
+                    <Newspaper className="w-4 h-4" />
+                    News
+                  </TabsTrigger>
+                  <TabsTrigger value="about" className="gap-2">
+                    <Info className="w-4 h-4" />
+                    About
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="overview">
+                  <StockChart symbol={symbol} />
+                </TabsContent>
+
+                <TabsContent value="news">
+                  <NewsList symbol={symbol} limit={10} />
+                </TabsContent>
+
+                <TabsContent value="about">
+                  <CompanyProfile symbol={symbol} />
+                </TabsContent>
+              </Tabs>
             </>
           ) : (
             <GlassCard className="p-8 text-center">

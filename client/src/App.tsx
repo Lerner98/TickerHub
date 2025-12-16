@@ -38,7 +38,7 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
+      <TooltipProvider delayDuration={100}>
         <AnimatedBackground />
         <div className="relative min-h-screen">
           <Router />

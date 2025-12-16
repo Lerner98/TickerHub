@@ -2,14 +2,12 @@ import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { PriceTicker } from '@/components/PriceTicker';
 import { GlassCard } from '@/components/GlassCard';
-import { cn, formatNumber } from '@/lib/utils';
-import { useStats } from '@/features/crypto';
-import { 
-  ArrowRight, 
-  Blocks, 
-  Search, 
-  Activity, 
-  Shield, 
+import { cn } from '@/lib/utils';
+import {
+  ArrowRight,
+  Blocks,
+  Search,
+  Activity,
   Zap,
   ChevronRight,
   Globe,
@@ -18,45 +16,36 @@ import {
 
 const features = [
   {
-    icon: Blocks,
-    title: 'Multi-Chain Explorer',
-    description: 'Explore blocks, transactions, and addresses across Bitcoin, Ethereum, and more blockchain networks.',
+    icon: LineChart,
+    title: 'Stocks & Crypto',
+    description: 'Track 300+ US stocks and 170+ cryptocurrencies in one unified dashboard with real-time prices.',
     color: 'text-primary',
     bgColor: 'bg-primary/10',
   },
   {
     icon: Activity,
     title: 'Real-Time Analytics',
-    description: 'Track live prices, market movements, and network statistics with instant updates.',
+    description: 'Live market data, price alerts, and performance metrics updated every few seconds.',
     color: 'text-accent',
     bgColor: 'bg-accent/10',
   },
   {
-    icon: Search,
-    title: 'Universal Search',
-    description: 'Search any address, transaction hash, or block number across all supported networks instantly.',
+    icon: Blocks,
+    title: 'Blockchain Explorer',
+    description: 'Explore Bitcoin and Ethereum blocks, transactions, and addresses with detailed insights.',
     color: 'text-secondary',
     bgColor: 'bg-secondary/10',
   },
   {
-    icon: Shield,
-    title: 'Secure & Reliable',
-    description: 'Built with industry-leading security practices and powered by trusted data sources.',
+    icon: Search,
+    title: 'Smart Search',
+    description: 'Instantly find any stock, crypto, wallet address, or transaction across all supported markets.',
     color: 'text-chart-4',
     bgColor: 'bg-chart-4/10',
   },
 ];
 
-interface Stats {
-  totalBlocks: number;
-  totalTransactions: number;
-  networksSupported: number;
-  uptime: string;
-}
-
 export default function LandingPage() {
-  const { data: stats } = useStats();
-
   return (
     <div className="flex flex-col min-h-screen">
       <section className="relative pt-20 pb-32 overflow-hidden">
@@ -66,18 +55,18 @@ export default function LandingPage() {
           <div className="text-center max-w-4xl mx-auto">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-6 animate-fade-in">
               <Zap className="w-4 h-4 text-primary" />
-              <span className="text-sm text-primary font-medium">Real-time blockchain insights</span>
+              <span className="text-sm text-primary font-medium">Stocks + Crypto in one place</span>
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 animate-fade-in-up">
               <span className="text-glow-primary">TickerHub</span>
               <br />
-              <span className="text-muted-foreground">Market Intelligence Platform</span>
+              <span className="text-muted-foreground">Your Market Intelligence Hub</span>
             </h1>
 
             <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-8 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
-              Track, analyze, and explore blockchain data across multiple networks. 
-              Get real-time insights into prices, transactions, and network health.
+              Track stocks, cryptocurrencies, and blockchain data in real-time.
+              One dashboard for all your market insights.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
@@ -96,8 +85,8 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-primary/20 rounded-full blur-[100px] animate-float" />
-          <div className="absolute bottom-1/4 right-1/4 w-48 h-48 bg-secondary/20 rounded-full blur-[80px] animate-float" style={{ animationDelay: '-3s' }} />
+          <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-primary/20 rounded-full blur-[100px] animate-float pointer-events-none" />
+          <div className="absolute bottom-1/4 right-1/4 w-48 h-48 bg-secondary/20 rounded-full blur-[80px] animate-float pointer-events-none" style={{ animationDelay: '-3s' }} />
         </div>
       </section>
 
@@ -107,29 +96,29 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 md:px-6">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
             {[
-              { 
-                label: 'Blocks Indexed', 
-                value: stats?.totalBlocks || 19500000, 
-                icon: Blocks,
-                suffix: '+' 
+              {
+                label: 'Stocks Tracked',
+                value: 300,
+                icon: LineChart,
+                suffix: '+'
               },
-              { 
-                label: 'Transactions Tracked', 
-                value: stats?.totalTransactions || 2100000000, 
+              {
+                label: 'Cryptocurrencies',
+                value: 170,
                 icon: Activity,
-                suffix: '+' 
+                suffix: '+'
               },
-              { 
-                label: 'Networks Supported', 
-                value: stats?.networksSupported || 2, 
+              {
+                label: 'Networks',
+                value: 2,
                 icon: Globe,
-                suffix: '' 
+                suffix: ''
               },
-              { 
-                label: 'Uptime', 
-                value: stats?.uptime || '99.9', 
-                icon: Shield,
-                suffix: '%' 
+              {
+                label: 'Real-Time Updates',
+                value: '24/7',
+                icon: Zap,
+                suffix: ''
               },
             ].map((stat, index) => {
               const Icon = stat.icon;
@@ -141,8 +130,7 @@ export default function LandingPage() {
                 >
                   <Icon className="w-8 h-8 mx-auto mb-3 text-primary" />
                   <p className="text-3xl sm:text-4xl font-bold mb-1">
-                    {typeof stat.value === 'number' ? formatNumber(stat.value, 0) : stat.value}
-                    {stat.suffix}
+                    {stat.value}{stat.suffix}
                   </p>
                   <p className="text-sm text-muted-foreground">{stat.label}</p>
                 </GlassCard>
@@ -156,10 +144,10 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 md:px-6">
           <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-              Powerful Features for Crypto Enthusiasts
+              Everything You Need to Stay Ahead
             </h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              Everything you need to explore, analyze, and understand blockchain data
+              Powerful tools for tracking stocks, crypto, and blockchain data
             </p>
           </div>
 
@@ -203,11 +191,11 @@ export default function LandingPage() {
           </div>
 
           <h2 className="text-3xl sm:text-4xl font-bold mb-6">
-            Ready to Dive Into Blockchain Data?
+            Ready to Track the Markets?
           </h2>
 
           <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Get instant access to real-time blockchain analytics, market data, and comprehensive network insights.
+            Get instant access to real-time stock prices, crypto analytics, and comprehensive market insights.
           </p>
 
           <Link href="/dashboard">
@@ -229,7 +217,7 @@ export default function LandingPage() {
               <span className="font-semibold">TickerHub</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              Powered by CoinGecko, Etherscan, and Blockchain.com APIs
+              Powered by CoinGecko, Twelve Data, Finnhub & Blockchair
             </p>
           </div>
         </div>

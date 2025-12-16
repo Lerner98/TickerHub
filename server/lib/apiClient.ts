@@ -26,6 +26,8 @@ const ALLOWED_HOSTS = new Set([
   // Stock data providers (dual-provider: Twelve Data primary, Finnhub fallback)
   'api.twelvedata.com',  // Primary: Twelve Data ($29/mo paid, best coverage)
   'finnhub.io',          // Fallback: Finnhub (free tier: 60 calls/min)
+  // FMP - Market movers, company profiles, news
+  'financialmodelingprep.com', // FMP: 250 calls/day free
   // AI providers
   'api.groq.com', // AI: Free tier fallback (30 RPM)
   'generativelanguage.googleapis.com', // AI: Gemini primary (15 RPM)

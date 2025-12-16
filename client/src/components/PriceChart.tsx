@@ -97,9 +97,9 @@ export function PriceChart({ coinId, coinName, className }: PriceChartProps) {
                 tickFormatter={(value) => {
                   const date = new Date(value * 1000);
                   if (selectedRange === '1D') {
-                    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
                   }
-                  return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+                  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                 }}
                 stroke="hsl(var(--muted-foreground))"
                 fontSize={11}

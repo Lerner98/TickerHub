@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { createChart, ColorType, LineStyle, AreaSeries, type IChartApi, type ISeriesApi, type AreaData, type Time } from 'lightweight-charts';
+import { createChart, ColorType, LineStyle, AreaSeries, type IChartApi, type AreaData, type Time } from 'lightweight-charts';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { GlassCard } from './GlassCard';
@@ -63,11 +63,20 @@ export function StockChart({ symbol, className }: StockChartProps) {
     : 0;
   const isPositive = priceChange >= 0;
 
-  // Initialize chart
+  // Initialize and update chart when data or timeframe changes
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
+    // Remove existing chart
+    if (chartRef.current) {
+      chartRef.current.remove();
+      chartRef.current = null;
+      seriesRef.current = null;
+    }
+
     const chart = createChart(chartContainerRef.current, {
+      width: chartContainerRef.current.clientWidth,
+      height: 300,
       layout: {
         background: { type: ColorType.Solid, color: 'transparent' },
         textColor: 'rgba(255, 255, 255, 0.6)',
@@ -101,16 +110,26 @@ export function StockChart({ symbol, className }: StockChartProps) {
       },
       timeScale: {
         borderVisible: false,
-        timeVisible: true,
+        timeVisible: timeframe === '1D' || timeframe === '7D',
         secondsVisible: false,
+        rightOffset: 5,
+        barSpacing: timeframe === '1D' ? 8 : timeframe === '7D' ? 10 : 12,
+        minBarSpacing: 4,
+        fixLeftEdge: true,
+        fixRightEdge: true,
       },
       handleScale: {
         axisPressedMouseMove: {
           time: true,
           price: true,
         },
+        mouseWheel: true,
+        pinch: true,
       },
       handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
         vertTouchDrag: false,
       },
     });
@@ -127,55 +146,50 @@ export function StockChart({ symbol, className }: StockChartProps) {
     };
 
     window.addEventListener('resize', handleResize);
-    handleResize();
+
+    // Add data if available
+    if (chartData && chartData.length > 0) {
+      const lineColor = isPositive ? '#10b981' : '#ef4444';
+      const topColor = isPositive ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)';
+      const bottomColor = isPositive ? 'rgba(16, 185, 129, 0.0)' : 'rgba(239, 68, 68, 0.0)';
+
+      const areaSeries = chart.addSeries(AreaSeries, {
+        lineColor,
+        topColor,
+        bottomColor,
+        lineWidth: 2,
+        priceLineVisible: true,
+        lastValueVisible: true,
+        crosshairMarkerVisible: true,
+        crosshairMarkerRadius: 4,
+        crosshairMarkerBorderColor: lineColor,
+        crosshairMarkerBackgroundColor: '#fff',
+      });
+
+      // Transform data for lightweight-charts
+      // Sort by timestamp and ensure unique values
+      const sortedData = [...chartData].sort((a, b) => a.timestamp - b.timestamp);
+      const areaData: AreaData<Time>[] = sortedData.map((point) => ({
+        time: (Math.floor(point.timestamp / 1000)) as Time,
+        value: point.price,
+      }));
+
+      areaSeries.setData(areaData);
+      seriesRef.current = areaSeries;
+
+      // Fit content after data is set
+      chart.timeScale().fitContent();
+    }
 
     return () => {
       window.removeEventListener('resize', handleResize);
-      chart.remove();
-      chartRef.current = null;
-      seriesRef.current = null;
+      if (chartRef.current) {
+        chartRef.current.remove();
+        chartRef.current = null;
+        seriesRef.current = null;
+      }
     };
-  }, []);
-
-  // Update chart data and colors
-  useEffect(() => {
-    if (!chartRef.current || !chartData || chartData.length === 0) return;
-
-    // Remove old series if exists
-    if (seriesRef.current) {
-      chartRef.current.removeSeries(seriesRef.current);
-    }
-
-    // Create new area series with dynamic color
-    const lineColor = isPositive ? '#10b981' : '#ef4444';
-    const topColor = isPositive ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)';
-    const bottomColor = isPositive ? 'rgba(16, 185, 129, 0.0)' : 'rgba(239, 68, 68, 0.0)';
-
-    const areaSeries = chartRef.current.addSeries(AreaSeries, {
-      lineColor,
-      topColor,
-      bottomColor,
-      lineWidth: 2,
-      priceLineVisible: false,
-      lastValueVisible: true,
-      crosshairMarkerVisible: true,
-      crosshairMarkerRadius: 4,
-      crosshairMarkerBorderColor: lineColor,
-      crosshairMarkerBackgroundColor: '#fff',
-    });
-
-    // Transform data for lightweight-charts
-    const areaData: AreaData<Time>[] = chartData.map((point) => ({
-      time: (point.timestamp / 1000) as Time, // Convert ms to seconds
-      value: point.price,
-    }));
-
-    areaSeries.setData(areaData);
-    seriesRef.current = areaSeries;
-
-    // Fit content
-    chartRef.current.timeScale().fitContent();
-  }, [chartData, isPositive]);
+  }, [chartData, timeframe, isPositive]);
 
   return (
     <GlassCard className={cn('p-4', className)}>

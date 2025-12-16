@@ -1,6 +1,6 @@
 # TickerHub
 
-A unified market intelligence platform aggregating real-time cryptocurrency and stock market data with a modular, production-ready architecture.
+A unified market intelligence platform for stocks, crypto, and blockchain data with real-time tracking, AI-powered features, and Google OAuth authentication.
 
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue)
 ![React](https://img.shields.io/badge/React-18-61DAFB)
@@ -9,16 +9,29 @@ A unified market intelligence platform aggregating real-time cryptocurrency and 
 
 ---
 
-## Overview
+## What It Does
 
-TickerHub addresses a common pain point: financial data is fragmented across multiple platforms. Crypto traders check one app, stock investors check another. This project consolidates both asset classes into a single, responsive interface with shared infrastructure.
+TickerHub consolidates financial data that's typically fragmented across multiple platforms:
 
-### Core Objectives
+- **Stock Tracking** - 270+ US stocks (NASDAQ, NYSE) with real-time prices, charts, and metrics
+- **Crypto Tracking** - 160+ cryptocurrencies with prices, market cap, and 7-day sparklines
+- **Blockchain Explorer** - Bitcoin & Ethereum block/transaction/address lookup
+- **Watchlists** - Save favorite assets with Google OAuth login
+- **Market Hours** - Live status for NYSE, NASDAQ, LSE, TASE, and crypto (24/7)
 
-1. **Unified Data Layer** - Single API abstraction over multiple data providers
-2. **Production Reliability** - Circuit breakers, graceful degradation, structured error handling
-3. **Developer Experience** - Zero external API calls during development (mock-first approach)
-4. **Extensibility** - Type-safe architecture enabling new asset classes without refactoring
+---
+
+## Live Features
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| Dual-Provider Stocks | **Live** | Twelve Data (primary) + Finnhub (fallback) |
+| Crypto Prices | **Live** | CoinGecko API with sparkline charts |
+| Historical Charts | **Live** | 1D, 7D, 30D, 1Y timeframes |
+| Market Hours | **Live** | Real-time open/close status with countdowns |
+| Watchlists | **Live** | PostgreSQL + Better Auth + Google OAuth |
+| Blockchain Explorer | **Live** | Blockchair API for BTC/ETH |
+| Smart Search | **Live** | Fuse.js fuzzy search across all assets |
 
 ---
 
@@ -33,71 +46,66 @@ TickerHub addresses a common pain point: financial data is fragmented across mul
                                  ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                        Express Backend                          │
-│         Domain Routes · Cache Layer · Circuit Breakers          │
+│    Dual-Provider · Cache Layer · Rate Limiting · Better Auth    │
 └─────────────────────────────────────────────────────────────────┘
                                  │
-                 ┌───────────────┼───────────────┐
-                 ▼               ▼               ▼
-          ┌───────────┐   ┌───────────┐   ┌───────────┐
-          │ CoinGecko │   │  Finnhub  │   │ Etherscan │
-          │  (Crypto) │   │  (Stocks) │   │   (Chain) │
-          └───────────┘   └───────────┘   └───────────┘
+         ┌───────────────┬───────┴───────┬───────────────┐
+         ▼               ▼               ▼               ▼
+   ┌───────────┐   ┌───────────┐   ┌───────────┐   ┌───────────┐
+   │  Twelve   │   │  Finnhub  │   │ CoinGecko │   │Blockchair │
+   │   Data    │   │ (fallback)│   │  (crypto) │   │  (chain)  │
+   └───────────┘   └───────────┘   └───────────┘   └───────────┘
 ```
 
-### Design Decisions
+### Key Design Patterns
 
-| Decision | Rationale |
-|----------|-----------|
-| **Discriminated Union Types** | `Asset = CryptoAsset \| StockAsset` enables type-safe handling while sharing common UI components |
-| **Circuit Breaker Pattern** | Prevents cascade failures when external APIs degrade; automatic recovery with half-open state |
-| **Cache-First Strategy** | 60s TTL for quotes, 24h for profiles; stale data preferred over errors |
-| **Mock-First Development** | Zero API costs during development; instant feedback loops |
+- **Dual-Provider Fallback** - Twelve Data primary, Finnhub fallback for stocks
+- **Cache-First Strategy** - 30s TTL for quotes, 5min for charts
+- **Graceful Degradation** - Shows "N/A" when data unavailable instead of crashing
+- **Type-Safe Unions** - `Asset = CryptoAsset | StockAsset` with discriminated types
 
 ---
 
 ## Tech Stack
 
-### Frontend
-- **React 18** with TypeScript
-- **TanStack Query** for server state management
-- **Tailwind CSS** + shadcn/ui components
-- **Recharts** for data visualization
-- **Wouter** for lightweight routing
-
-### Backend
-- **Node.js 20** + Express
-- **TypeScript** (ESM source, CJS production bundle)
-- **Zod** for runtime validation
-- **esbuild** for fast production builds
-
-### Infrastructure
-- **Docker** multi-stage builds
-- **GitHub Actions** CI/CD pipeline
-- **Coolify** deployment integration
+| Layer | Technologies |
+|-------|--------------|
+| Frontend | React 18, TypeScript, Vite, TailwindCSS, shadcn/ui, Recharts |
+| Backend | Node.js 20, Express, TypeScript |
+| Database | PostgreSQL (Neon serverless) + Drizzle ORM |
+| Auth | Better Auth + Google OAuth |
+| Search | Fuse.js (client-side fuzzy) |
+| APIs | Twelve Data, Finnhub, CoinGecko, Blockchair |
 
 ---
 
 ## API Endpoints
 
-```
-# Cryptocurrency
-GET /api/prices                    # Top cryptocurrencies
-GET /api/chart/:coinId/:range      # Historical price data
-
-# Stock Market
+```bash
+# Stocks
 GET /api/stocks                    # Top stocks
-GET /api/stocks/:symbol            # Single stock details
-GET /api/stocks/search?q=          # Symbol search
-GET /api/stocks/batch?symbols=     # Batch lookup (max 20)
+GET /api/stocks/:symbol            # Single stock with metrics
+GET /api/stocks/:symbol/chart      # Historical chart data
+
+# Crypto
+GET /api/prices                    # Top cryptocurrencies
+GET /api/chart/:coinId/:range      # Crypto historical data
 
 # Blockchain Explorer
-GET /api/network/:chain            # Network statistics
+GET /api/network/:chain            # Network stats (BTC/ETH)
 GET /api/blocks/:chain/:limit      # Recent blocks
-GET /api/tx/:hash                  # Transaction details
-GET /api/address/:address          # Address lookup
+GET /api/tx/:hash                  # Transaction lookup
+GET /api/address/:address          # Address balance/txs
+
+# Auth & User
+GET /api/auth/session              # Current session
+POST /api/auth/signin/social       # Google OAuth
+GET /api/watchlist                 # User's saved assets
+POST /api/watchlist                # Add to watchlist
+DELETE /api/watchlist/:id          # Remove from watchlist
 
 # System
-GET /api/health                    # Service health check
+GET /api/health                    # Health check
 GET /api/stats                     # Platform statistics
 ```
 
@@ -108,25 +116,26 @@ GET /api/stats                     # Platform statistics
 ```
 TickerHub/
 ├── client/src/
-│   ├── components/          # Reusable UI components
-│   ├── pages/               # Route-level components
-│   ├── hooks/               # Custom React hooks
-│   └── lib/                 # Utilities and helpers
+│   ├── components/          # UI components (GlassCard, StockChart, etc.)
+│   ├── pages/               # Route pages (Dashboard, Stock, Explorer, etc.)
+│   ├── hooks/               # useAuth, useWatchlist, useAssetSearch
+│   ├── features/            # Feature modules (stocks, crypto)
+│   ├── services/            # API clients
+│   └── data/                # Static datasets (stocks.ts, crypto.ts)
 ├── server/
 │   ├── api/
+│   │   ├── stocks/          # Twelve Data + Finnhub integration
 │   │   ├── crypto/          # CoinGecko integration
-│   │   ├── stocks/          # Finnhub integration
-│   │   ├── blockchain/      # Chain data routes
-│   │   └── explorer/        # Transaction/address lookup
-│   ├── lib/
-│   │   ├── cache.ts         # In-memory cache with TTL
-│   │   ├── apiClient.ts     # SSRF-safe HTTP client
-│   │   ├── circuitBreaker.ts # Failure isolation
-│   │   └── logger.ts        # Structured logging
-│   └── mocks/               # Development mock data
+│   │   ├── blockchain/      # Network stats
+│   │   ├── explorer/        # Transaction/address lookup
+│   │   └── watchlist/       # User watchlists
+│   ├── auth/                # Better Auth configuration
+│   ├── db/                  # Drizzle schema + migrations
+│   ├── lib/                 # Cache, apiClient, logger, constants
+│   └── middleware/          # Auth, rate limiting, security
 ├── shared/
 │   └── schema.ts            # Shared TypeScript types
-└── CHANGELOG/               # Version documentation
+└── INTEGRATION_PLAN.md      # AI features + FMP roadmap
 ```
 
 ---
@@ -134,109 +143,108 @@ TickerHub/
 ## Getting Started
 
 ### Prerequisites
+
 - Node.js 20+
 - npm 9+
+- PostgreSQL (or Neon account for serverless)
 
 ### Installation
 
 ```bash
-# Clone and install
 git clone https://github.com/Lerner98/TickerHub.git
 cd TickerHub
 npm install
-
-# Start development server (uses mock data by default)
-npm run dev
+cp .env.example .env
 ```
 
 ### Environment Variables
 
-```bash
-cp .env.example .env
-```
-
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `FINNHUB_API_KEY` | No* | Stock market data (mocked in dev) |
-| `ETHERSCAN_API_KEY` | No | Enhanced blockchain data |
-| `USE_REAL_API` | No | Set `true` to use live APIs in dev |
+| `TWELVE_DATA_API_KEY` | Recommended | Primary stock data (800 calls/day free) |
+| `FINNHUB_API_KEY` | Recommended | Stock fallback + profiles (60 calls/min free) |
+| `DATABASE_URL` | For watchlists | PostgreSQL connection string |
+| `BETTER_AUTH_SECRET` | For auth | Random secret for sessions |
+| `GOOGLE_CLIENT_ID` | For auth | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | For auth | Google OAuth client secret |
 
-*Mock data is used by default in development.
+All APIs have free tiers. App works without any keys (shows "N/A" for missing data).
 
-### Available Scripts
+### Running
 
 ```bash
-npm run dev        # Development server (mock data)
-npm run dev:real   # Development with live APIs
+npm run dev        # Development server
 npm run build      # Production build
 npm run check      # TypeScript validation
-npm run lint       # ESLint check
 ```
 
 ---
 
-## Development Approach
+## Data Coverage
 
-### Mock-First Strategy
+### Stocks (270+)
+- US Markets: NASDAQ, NYSE
+- Metrics: Price, Change, Volume, Market Cap, Sector, Day Range
+- Charts: 1D, 7D, 30D, 1Y timeframes via Twelve Data
 
-Development uses pre-seeded mock data by default. This provides:
-- **Zero API costs** during development
-- **Consistent test data** across environments
-- **Offline development** capability
-- **Fast iteration** without rate limits
+### Crypto (160+)
+- Top cryptocurrencies by market cap
+- Metrics: Price, Change, Market Cap, Volume, 7-day sparkline
+- Categories: Currency, Smart Contract, DeFi, Meme, Gaming
 
-Production never falls back to mock data. The fallback chain is:
-```
-Real API → Stale Cache (5 min) → Graceful Error Response
-```
-
-### Error Handling Philosophy
-
-External API failures are expected, not exceptional. The system degrades gracefully:
-
-```typescript
-// User sees friendly message, not stack trace
-res.status(503).json({
-  error: 'Service temporarily unavailable',
-  message: 'Stock data is currently unavailable. Please try again shortly.',
-  retryAfter: 60
-});
-```
+### Blockchain
+- Bitcoin: Blocks, transactions, addresses
+- Ethereum: Blocks, transactions, addresses
+- No API key required (Blockchair free tier)
 
 ---
 
-## CI/CD Pipeline
+## Premium Configuration
 
-```
-Push to main
-     │
-     ▼
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│    Lint     │ ──▶ │    Build    │ ──▶ │   Deploy    │
-│  (ESLint)   │     │   (Vite +   │     │  (Coolify)  │
-│             │     │   esbuild)  │     │             │
-└─────────────┘     └─────────────┘     └─────────────┘
-```
+TickerHub runs on **free API tiers** by default with zero cost.
 
-- **Lint**: Code quality validation
-- **Build**: TypeScript compilation, Vite client bundle, esbuild server bundle
-- **Deploy**: Webhook trigger to Coolify for container deployment
+### Current Free Tier Usage
+
+| API | Free Limit | What It Powers |
+|-----|------------|----------------|
+| Twelve Data | 800 calls/day | Stock prices, charts |
+| Finnhub | 60 calls/min | Stock fallback, profiles, market cap |
+| CoinGecko | 30 calls/min | Crypto prices, sparklines |
+| Blockchair | Unlimited basic | Blockchain explorer |
+
+### Upgrading for Production
+
+| API | Premium Plan | Price | What You Get |
+|-----|--------------|-------|--------------|
+| Twelve Data | Growth | $29/mo | 12,000 calls/day, websockets |
+| Finnhub | Premium | $50/mo | Unlimited, full fundamental data |
+| FMP | Starter | $15/mo | P/E ratio, top gainers/losers |
+| Gemini | Pay-as-you-go | ~$0.001/call | AI search, stock summaries |
+
+**For demos:** Free tiers are sufficient
+**For production:** Twelve Data ($29) + FMP ($15) = $44/mo for full features
 
 ---
 
-## Current Status
+## Roadmap
 
-| Phase | Status | Description |
-|-------|--------|-------------|
-| Crypto MVP | Complete | Price tracking, charts, blockchain explorer |
-| Stock Data Layer | Complete | Finnhub integration, unified types |
-| Stock UI | Complete | Dashboard integration, stock cards |
-| Production Audit | Complete | ESM/CJS compatibility, build verification |
+See [INTEGRATION_PLAN.md](INTEGRATION_PLAN.md) for detailed implementation plan.
 
-### Next Milestones
-- Unified asset search (crypto + stocks)
-- User watchlists with persistence
-- Price alerts system
+### Coming Soon
+
+- [ ] **FMP Integration** - Real top gainers/losers from entire market
+- [ ] **AI Natural Language Search** - "show me tech stocks that are up"
+- [ ] **AI Stock Summaries** - Sentiment analysis + insights via Gemini
+- [ ] **More Metrics** - P/E ratio, EPS, 52-week range via FMP
+
+### Recently Completed
+
+- [x] Google OAuth authentication
+- [x] Watchlist with PostgreSQL persistence
+- [x] Dual-provider stock data (Twelve Data + Finnhub)
+- [x] Historical charts (1D/7D/30D/1Y)
+- [x] Market hours indicator
+- [x] Stock metrics panel (Market Cap, Volume, Sector)
 
 ---
 

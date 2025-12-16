@@ -224,6 +224,43 @@ async function fetchFromFinnhub(symbol: string): Promise<StockAsset | null> {
 }
 
 // =============================================================================
+// FINNHUB PROFILE ENRICHMENT
+// =============================================================================
+
+/**
+ * Fetch only profile data from Finnhub (for enriching Twelve Data results)
+ * Returns marketCap and sector without fetching quote data
+ */
+async function fetchFinnhubProfile(symbol: string): Promise<{ marketCap?: number; sector?: string } | null> {
+  if (!hasFinnhub) return null;
+
+  try {
+    const url = `${API_URLS.FINNHUB}/stock/profile2?symbol=${symbol}&token=${FINNHUB_API_KEY}`;
+    const response = await fetchWithTimeout(url);
+
+    if (!response.ok) {
+      log(`Finnhub profile error: ${response.status}`, 'stocks', 'debug');
+      return null;
+    }
+
+    const profile: FinnhubProfile = await response.json();
+
+    // Check for valid profile data
+    if (!profile || !profile.name) {
+      return null;
+    }
+
+    return {
+      marketCap: profile.marketCapitalization ? profile.marketCapitalization * 1_000_000 : undefined,
+      sector: profile.finnhubIndustry || undefined,
+    };
+  } catch (error) {
+    logError(error as Error, `Finnhub profile fetch failed: ${symbol}`);
+    return null;
+  }
+}
+
+// =============================================================================
 // PUBLIC API - Dual Provider with Fallback
 // =============================================================================
 
@@ -253,10 +290,23 @@ export async function getStockAsset(symbol: string): Promise<StockAsset | null> 
     return null;
   }
 
-  // Try Twelve Data first (primary)
+  // Try Twelve Data first (primary) for price data
   let asset = await fetchFromTwelveData(upperSymbol);
 
-  // Fallback to Finnhub if Twelve Data failed
+  // If Twelve Data succeeded but we have Finnhub, enrich with profile data
+  if (asset && hasFinnhub) {
+    const finnhubData = await fetchFinnhubProfile(upperSymbol);
+    if (finnhubData) {
+      asset = {
+        ...asset,
+        marketCap: finnhubData.marketCap || asset.marketCap,
+        sector: finnhubData.sector || asset.sector,
+      };
+      log(`Enriched ${upperSymbol} with Finnhub profile`, 'stocks', 'debug');
+    }
+  }
+
+  // Fallback to Finnhub entirely if Twelve Data failed
   if (!asset && hasFinnhub) {
     log(`Falling back to Finnhub for ${upperSymbol}`, 'stocks', 'debug');
     asset = await fetchFromFinnhub(upperSymbol);
@@ -405,7 +455,10 @@ async function fetchChartFromTwelveData(
   symbol: string,
   timeframe: ChartTimeframe
 ): Promise<ChartDataPoint[] | null> {
-  if (!hasTwelveData) return null;
+  if (!hasTwelveData) {
+    log(`Twelve Data not configured for chart: ${symbol}`, 'stocks', 'debug');
+    return null;
+  }
 
   try {
     // Map timeframe to Twelve Data interval and outputsize
@@ -435,6 +488,7 @@ async function fetchChartFromTwelveData(
     }
 
     const url = `${API_URLS.TWELVE_DATA}/time_series?symbol=${symbol}&interval=${interval}&outputsize=${outputsize}&apikey=${TWELVE_DATA_API_KEY}`;
+    log(`Fetching Twelve Data chart: ${symbol} ${timeframe}`, 'stocks', 'debug');
 
     const response = await fetchWithTimeout(url);
     if (!response.ok) {
@@ -444,10 +498,18 @@ async function fetchChartFromTwelveData(
 
     const data: TwelveDataTimeSeries = await response.json();
 
+    // Check for API error response (Twelve Data returns errors in JSON)
+    if ('code' in data || 'message' in data) {
+      log(`Twelve Data API error for chart ${symbol}: ${JSON.stringify(data).slice(0, 200)}`, 'stocks', 'warn');
+      return null;
+    }
+
     if (!data.values || data.values.length === 0) {
       log(`Twelve Data no time_series data for ${symbol}`, 'stocks', 'debug');
       return null;
     }
+
+    log(`Twelve Data chart success: ${symbol} ${timeframe} (${data.values.length} points)`, 'stocks', 'debug');
 
     // Transform and reverse (Twelve Data returns newest first)
     return data.values
