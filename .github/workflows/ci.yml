@@ -1,0 +1,96 @@
+# TickerHub CI Pipeline
+#
+# Quality gate that runs on every push/PR to main.
+# Deployment is handled by Coolify's native git integration.
+#
+# Workflow:
+# 1. TypeScript type check
+# 2. Build verification
+# 3. (Optional) Health check after Coolify deploys
+
+name: CI
+
+on:
+  push:
+    branches: [main, pre-prod]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ===========================================================================
+  # Quality Gate: Type Check & Build
+  # ===========================================================================
+  quality-gate:
+    name: Type Check & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript type check
+        run: npm run check
+
+      - name: Build application
+        run: npm run build
+
+  # ===========================================================================
+  # Post-Deploy Health Check (main branch only)
+  # Runs after Coolify has time to deploy
+  # ===========================================================================
+  health-check:
+    name: Health Check
+    needs: quality-gate
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Wait for Coolify deployment
+        run: |
+          echo "Waiting 90s for Coolify to build and deploy..."
+          sleep 90
+
+      - name: Verify deployment health
+        run: |
+          echo "Running health check against production..."
+          MAX_ATTEMPTS=20
+          ATTEMPT=1
+
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "Attempt $ATTEMPT/$MAX_ATTEMPTS"
+
+            RESPONSE=$(curl -sf "${{ secrets.APP_URL }}/api/health" 2>/dev/null || echo "failed")
+
+            if echo "$RESPONSE" | grep -q '"status":"ok"'; then
+              echo "Health check passed!"
+              echo "Response: $RESPONSE"
+              exit 0
+            fi
+
+            echo "Health check failed, retrying in 10s..."
+            sleep 10
+            ATTEMPT=$((ATTEMPT + 1))
+          done
+
+          echo "Health check failed after $MAX_ATTEMPTS attempts"
+          echo "Coolify deployment may have failed - check Coolify dashboard"
+          exit 1
+
+      - name: Deployment verified
+        if: success()
+        run: |
+          echo "Production deployment verified!"
+          echo "Commit: ${{ github.sha }}"
+          echo "URL: ${{ secrets.APP_URL }}"
