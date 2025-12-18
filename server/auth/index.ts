@@ -37,10 +37,12 @@ export const auth = betterAuth({
     },
   },
 
-  // Session configuration
+  // Session configuration - Short sessions for security
+  // Since we don't have persistent user data (no working watchlists yet),
+  // keeping sessions short reduces attack surface
   session: {
-    expiresIn: 60 * 60 * 24 * 7, // 7 days
-    updateAge: 60 * 60 * 24, // Update session every 24 hours
+    expiresIn: 60 * 60, // 1 hour - security focused
+    updateAge: 60 * 15, // Refresh session every 15 minutes of activity
     cookieCache: {
       enabled: true,
       maxAge: 60 * 5, // 5 minutes
