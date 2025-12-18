@@ -24,6 +24,7 @@ import {
   searchStocks,
   getProviderStatus,
   getStockChart,
+  getFinnhubNews,
   type ChartTimeframe,
 } from './service';
 import {
@@ -539,12 +540,18 @@ router.get(
     const { symbol } = req.params;
     const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
 
-    const news = await getStockNews(symbol, limit);
+    // Try FMP first, fallback to Finnhub if empty/null
+    let news = await getStockNews(symbol, limit);
 
-    if (!news) {
+    // If FMP returns null or empty array, try Finnhub
+    if (!news || news.length === 0) {
+      news = await getFinnhubNews(symbol, limit);
+    }
+
+    if (!news || news.length === 0) {
       return res.status(503).json({
         error: 'News unavailable',
-        message: 'FMP API key not configured or service unavailable',
+        message: 'No news found for this symbol',
         symbol: symbol.toUpperCase(),
         configured: isFMPConfigured(),
       });

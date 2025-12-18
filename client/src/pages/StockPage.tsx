@@ -7,7 +7,8 @@ import { FullPageLoading } from '@/components/LoadingState';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { NewsList, CompanyProfile } from '@/components/stock';
+import { NewsList, CompanyProfile, AnalystRatings, FinancialsTable } from '@/components/stock';
+import { AIInsightsCard } from '@/components/ai';
 import { cn, formatCurrency, formatPercentage, formatNumber } from '@/lib/utils';
 import { useStock } from '@/features/stocks';
 import {
@@ -23,6 +24,8 @@ import {
   Newspaper,
   Info,
   LineChart,
+  Target,
+  FileText,
 } from 'lucide-react';
 
 export default function StockPage() {
@@ -185,18 +188,26 @@ export default function StockPage() {
 
               {/* Tabs for Chart, News, About */}
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full max-w-md grid-cols-3 mb-4">
-                  <TabsTrigger value="overview" className="gap-2">
-                    <LineChart className="w-4 h-4" />
-                    Chart
+                <TabsList className="flex w-full max-w-xl overflow-x-auto mb-4 gap-1">
+                  <TabsTrigger value="overview" className="gap-1.5 flex-shrink-0 text-xs sm:text-sm">
+                    <LineChart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:inline">Chart</span>
                   </TabsTrigger>
-                  <TabsTrigger value="news" className="gap-2">
-                    <Newspaper className="w-4 h-4" />
-                    News
+                  <TabsTrigger value="news" className="gap-1.5 flex-shrink-0 text-xs sm:text-sm">
+                    <Newspaper className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:inline">News</span>
                   </TabsTrigger>
-                  <TabsTrigger value="about" className="gap-2">
-                    <Info className="w-4 h-4" />
-                    About
+                  <TabsTrigger value="about" className="gap-1.5 flex-shrink-0 text-xs sm:text-sm">
+                    <Info className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:inline">About</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="analyst" className="gap-1.5 flex-shrink-0 text-xs sm:text-sm">
+                    <Target className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:inline">Analyst</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="financials" className="gap-1.5 flex-shrink-0 text-xs sm:text-sm">
+                    <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:inline">Financials</span>
                   </TabsTrigger>
                 </TabsList>
 
@@ -209,7 +220,22 @@ export default function StockPage() {
                 </TabsContent>
 
                 <TabsContent value="about">
-                  <CompanyProfile symbol={symbol} />
+                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 w-full">
+                    <div className="w-full">
+                      <CompanyProfile symbol={symbol} />
+                    </div>
+                    <div className="w-full">
+                      <AIInsightsCard symbol={symbol} />
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="analyst">
+                  <AnalystRatings symbol={symbol} currentPrice={stock.price} />
+                </TabsContent>
+
+                <TabsContent value="financials">
+                  <FinancialsTable symbol={symbol} />
                 </TabsContent>
               </Tabs>
             </>

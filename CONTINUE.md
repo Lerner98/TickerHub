@@ -1,14 +1,14 @@
 # TickerHub - Continuation Guide
 
 > **Last Updated:** December 16, 2025
-> **Current Version:** 1.4.0
-> **Status:** Phase 4 COMPLETE - Ready for Phase 4D (High-Value FMP Data)
+> **Current Version:** 1.5.0
+> **Status:** Phase 5 COMPLETE - All AI Features Done. Next: Phase 6 (Polish & Optimization)
 
 ---
 
 ## Current State Summary
 
-### What's Working (v1.4.0)
+### What's Working (v1.5.0)
 
 | Feature | Status | Provider |
 |---------|--------|----------|
@@ -18,18 +18,32 @@
 | **Market Movers** | **DONE** | FMP (gainers/losers/actives) |
 | **Stock News** | **DONE** | FMP (per-symbol news) |
 | **Company Profiles** | **DONE** | FMP (CEO, employees, description) |
+| **AI Search Parsing** | **DONE** | Gemini 1.5-flash-8b |
+| **AI Stock Summaries** | **DONE** | Gemini 1.5-flash-8b |
+| **AI Market Overview** | **DONE** | Gemini 1.5-flash-8b |
+| **AI Lazy Loading** | **DONE** | Button-triggered, quota conservation |
 | Crypto Prices | **DONE** | CoinGecko |
 | Blockchain Explorer | **DONE** | Blockchair |
 | Google OAuth | **DONE** | Better Auth |
 | Watchlist | **DONE** | PostgreSQL + Drizzle |
 | Market Hours | **DONE** | Client-side calculations |
 
-### Recent Changes (v1.4.0)
+### Recent Changes (v1.5.0)
 
-1. **FMP Market Movers**: Real top gainers, losers, and most active stocks
-2. **Stock News Tab**: Real news articles per stock with thumbnails
-3. **Company Profile Tab**: Full company info (CEO, employees, description, dividends)
-4. **TopStocksWithFilter**: Fetches real FMP data with local fallback
+1. **Phase 5 AI Features COMPLETE**:
+   - Natural language search parsing via Gemini
+   - Stock summary generation with sentiment analysis
+   - Market overview generation
+   - Rate limiting (15 RPM) and response caching (2-4 hours)
+   - AI quota conservation:
+     - AIInsightsCard: Button-triggered fetch (not auto)
+     - SmartSearchBar: AI only on form submit
+     - Extended cache TTLs (2-4 hours vs 10-30min)
+   - JSON truncation repair for incomplete AI responses
+2. **FMP Market Movers**: Real top gainers, losers, and most active stocks
+3. **Stock News Tab**: Real news articles per stock with thumbnails
+4. **Company Profile Tab**: Full company info (CEO, employees, description, dividends)
+5. **TopStocksWithFilter**: Fetches real FMP data with local fallback
 
 ---
 
@@ -160,36 +174,65 @@
 
 ---
 
-### Phase 5: AI Features (v1.4.0)
+### Phase 5: AI Features (v1.5.0) - COMPLETE ✓
 
 **Goal:** Natural language search + AI insights
 
-#### 5A: Gemini Setup
-- [ ] Install `@google/generative-ai`
-- [ ] Add `GEMINI_API_KEY` to `.env`
-- [ ] Add `generativelanguage.googleapis.com` to SSRF allowlist
-- [ ] Create `server/api/ai/geminiClient.ts`
-- [ ] Create `server/api/ai/prompts.ts`
-- [ ] Implement rate limiting (15 RPM free tier)
-- [ ] Add Groq fallback (`api.groq.com`)
+> **Completed:** December 16, 2025 - Full AI integration (backend + frontend + quota conservation)
 
-#### 5B: Natural Language Search
-- [ ] Create `server/api/ai/service.ts`
-- [ ] Implement `parseSearchQuery()` function
-- [ ] Add route: `POST /api/ai/search`
-- [ ] Create `client/src/hooks/useAISearch.ts`
-- [ ] Create `SmartSearchBar.tsx` component
-- [ ] Create `SearchResults.tsx` component
-- [ ] Integrate into Header search
+#### 5A: Gemini Setup ✓
+- [x] Install `@google/generative-ai`
+- [x] Add `GEMINI_API_KEY` to `.env` and `.env.example`
+- [x] Add `generativelanguage.googleapis.com` to SSRF allowlist
+- [x] Create `server/api/ai/geminiClient.ts` - Wrapper with rate limiting, caching, JSON parsing
+- [x] Create `server/api/ai/prompts.ts` - Structured prompts for search/summary/market
+- [x] Create `server/api/ai/service.ts` - Business logic for AI features
+- [x] Create `server/api/ai/routes.ts` - API endpoints
+- [x] Implement rate limiting (15 RPM free tier)
+- [x] Cache AI responses (extended: search 4hr, summary 2hr, market 1hr)
+- [x] Fallback keyword extraction when AI unavailable
+- [ ] Add Groq fallback (`api.groq.com`) - deferred
 
-#### 5C: AI Stock Summaries
-- [ ] Implement `generateStockSummary(symbol)` function
-- [ ] Add route: `GET /api/ai/summary/:symbol`
-- [ ] Create `client/src/hooks/useStockSummary.ts`
-- [ ] Create `AIInsightsCard.tsx` component
-- [ ] Create `SentimentGauge.tsx` component
-- [ ] Add to StockPage About tab
-- [ ] Cache AI responses (10min TTL)
+**Phase 5A API Endpoints:**
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/ai/search` | Parse natural language to SearchFilters |
+| `GET /api/ai/summary/:symbol` | Generate AI stock summary with sentiment |
+| `GET /api/ai/market` | Generate market overview |
+| `GET /api/ai/status` | AI service health (configured, available, requests remaining) |
+
+**Key Implementation Details:**
+- Model: `gemini-1.5-flash-8b` (best free tier availability)
+- Temperature: 0.1 (low for consistent structured output)
+- Max tokens: 4096 (increased to prevent truncation)
+- JSON extraction handles markdown code blocks and truncated responses
+
+#### 5B: Natural Language Search - Frontend ✓
+- [x] Backend `parseSearchQuery()` function implemented
+- [x] Backend route: `POST /api/ai/search` ready
+- [x] Create `client/src/hooks/useAISearch.ts`
+- [x] Create `SmartSearchBar.tsx` component
+- [x] Create `SearchResults.tsx` component (integrated into SmartSearchBar)
+- [x] Integrate into Header search
+
+#### 5C: AI Stock Summaries - Frontend ✓
+- [x] Backend `generateStockSummary(symbol)` function implemented
+- [x] Backend `generateMarketOverview()` function implemented
+- [x] Backend routes ready: `/api/ai/summary/:symbol`, `/api/ai/market`
+- [x] Create `client/src/hooks/useStockSummary.ts`
+- [x] Create `AIInsightsCard.tsx` component
+- [x] Create `SentimentGauge.tsx` component
+- [x] Add to StockPage About tab
+
+#### 5E: Lazy Loading & Quota Conservation ✓
+- [x] AIInsightsCard: Button-triggered fetch (not auto-fetch on page load)
+- [x] SmartSearchBar: AI parsing only on form submit (not while typing)
+- [x] Extended cache TTLs:
+  - Search cache: 4 hours (was 1 hour)
+  - Summary cache: 2 hours (was 30 min)
+  - Market overview: 1 hour (was 15 min)
+  - AI response cache: 2 hours (was 10 min)
+- [x] Fuse.js instant search works without consuming AI quota
 
 ---
 
@@ -331,14 +374,19 @@
 
 ### To Address
 1. **P/E Ratio**: Shows "N/A" when not available from API
-2. **News Tab**: Currently placeholder, needs FMP news integration
-3. **Test Coverage**: Add tests for new chart and tab components
+2. **Test Coverage**: Add tests for AI components, charts, tabs
+3. **Phase 4D Frontend** (optional): UI components for calendar/analyst/financial data
 
 ### Completed
 - [x] Stock search by name (Fuse.js)
 - [x] Loading states for dashboard
 - [x] Error handling in StockPage
 - [x] ESM compatibility for server
+- [x] News Tab - using FMP news integration
+- [x] AI backend - Gemini 1.5-flash-8b configured
+- [x] AI frontend - SmartSearchBar, AIInsightsCard, SentimentGauge
+- [x] AI lazy loading - button-triggered, quota conservation
+- [x] Extended cache TTLs (2-4 hours)
 
 ---
 
@@ -442,22 +490,37 @@ jobs:
 
 ## Long-Term Roadmap
 
-### v1.4.0 - AI & Market Movers
-- FMP real market movers
-- AI natural language search
-- AI stock summaries
-- Swagger/OpenAPI docs
+### v1.4.0 - FMP Integration ✓
+- [x] FMP real market movers
+- [x] Stock news per symbol
+- [x] Company profiles
+- [x] Financial data endpoints (backend)
 
-### v1.5.0 - User Features
+### v1.5.0 - AI Features ✓ (COMPLETE)
+- [x] AI backend (Gemini 1.5-flash-8b)
+- [x] AI frontend components (SmartSearchBar, AIInsightsCard, SentimentGauge)
+- [x] Lazy loading for quota conservation
+- [x] Extended cache TTLs (2-4 hours)
+
+### v1.6.0 - Polish & Optimization (NEXT)
+- Performance optimization (bundle size, lazy loading)
+- Error boundary improvements
+- Accessibility audit (WCAG compliance)
+- Mobile responsiveness polish
+- SEO optimization
+
+### v1.7.0 - Deployment
+- Production build configuration
+- CI/CD pipeline setup
+- Monitoring & logging
+- Documentation finalization
+
+### v2.0.0 - User Features
 - Portfolio tracking
 - Price alerts (browser + email)
-- Multi-device watchlist sync
-
-### v2.0.0 - Advanced Features
 - Cross-asset correlation engine
 - Advanced charting (candlestick, indicators)
 - Tax report generation
-- Time-shifted comparison
 
 ---
 
@@ -507,6 +570,11 @@ open http://localhost:5000
 | [CHANGELOG.md](CHANGELOG.md) | Version history |
 | [INTEGRATION_PLAN.md](INTEGRATION_PLAN.md) | AI + FMP integration plan |
 | [server/api/stocks/service.ts](server/api/stocks/service.ts) | Stock data service |
+| [server/api/stocks/fmpService.ts](server/api/stocks/fmpService.ts) | FMP data service |
+| [server/api/ai/geminiClient.ts](server/api/ai/geminiClient.ts) | Gemini AI wrapper |
+| [server/api/ai/service.ts](server/api/ai/service.ts) | AI business logic |
+| [server/api/ai/prompts.ts](server/api/ai/prompts.ts) | AI prompt templates |
+| [server/api/ai/routes.ts](server/api/ai/routes.ts) | AI API endpoints |
 | [client/src/pages/StockPage.tsx](client/src/pages/StockPage.tsx) | Stock detail page |
 | [client/src/components/StockChart.tsx](client/src/components/StockChart.tsx) | TradingView chart |
 | [server/lib/apiClient.ts](server/lib/apiClient.ts) | SSRF-protected fetch |
@@ -515,11 +583,21 @@ open http://localhost:5000
 
 ## Decision Points
 
-When continuing development:
+Decisions made:
 
-1. **FMP vs Local Sorting**: Implement FMP for real movers or keep local sorting?
-2. **AI Provider**: Gemini (free tier) vs Groq (fallback)?
-3. **News Source**: FMP news API or alternative?
+1. **FMP vs Local Sorting**: ✓ Using FMP for real movers with local fallback
+2. **AI Provider**: ✓ Gemini 1.5-flash-8b (best free tier availability)
+3. **News Source**: ✓ FMP news API (working)
+4. **Frontend AI Integration**: ✓ Dedicated AI widgets (AIInsightsCard, SentimentGauge)
+5. **Search UX**: ✓ SmartSearchBar with AI toggle on submit
+6. **Summary Display**: ✓ Lazy loaded via button click (quota conservation)
+7. **Cache Strategy**: ✓ Extended TTLs (2-4 hours) to preserve API quota
+
+Remaining decisions:
+
+1. **Phase 4D Frontend**: Build UI for earnings/analyst/financial data? (optional)
+2. **Deployment Target**: Vercel, Railway, or VPS?
+3. **Monitoring Stack**: Sentry vs LogRocket vs custom?
 
 ---
 

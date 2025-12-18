@@ -72,7 +72,7 @@ export function TopAssetsWithFilter({
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">{title}</h2>
         <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortMetric)}>
-          <SelectTrigger className="w-[160px] h-9">
+          <SelectTrigger className="w-[160px] h-9" aria-label="Sort cryptocurrencies by">
             <SelectValue placeholder="Sort by" />
           </SelectTrigger>
           <SelectContent>

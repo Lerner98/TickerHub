@@ -12,7 +12,9 @@ import { cache } from '../../lib/cache';
 import { log, logError } from '../../lib/logger';
 
 const FMP_API_KEY = process.env.FMP_API_KEY || '';
-const FMP_BASE_URL = 'https://financialmodelingprep.com/api';
+// FMP migrated from /api/v3 to /stable endpoints in August 2025
+const FMP_BASE_URL = 'https://financialmodelingprep.com/stable';
+const FMP_LEGACY_URL = 'https://financialmodelingprep.com/api'; // For endpoints not yet migrated
 const hasFMP = FMP_API_KEY.length > 0;
 
 // Cache TTLs in milliseconds
@@ -56,10 +58,13 @@ export interface FMPCompanyProfile {
   website: string;
   image: string;
   ipoDate: string;
-  mktCap: number;
+  mktCap: number;           // Legacy field (v3 API)
+  marketCap: number;        // New stable API field
   price: number;
   beta: number;
-  volAvg: number;
+  volAvg: number;           // Legacy field (v3 API)
+  averageVolume: number;    // New stable API field
+  volume: number;           // Current day volume
   lastDiv: number;
   range: string;
   changes: number;
@@ -314,7 +319,8 @@ export async function getTopGainers(): Promise<FMPMover[] | null> {
   }
 
   try {
-    const url = `${FMP_BASE_URL}/v3/stock_market/gainers?apikey=${FMP_API_KEY}`;
+    // New stable API: /stable/biggest-gainers
+    const url = `${FMP_BASE_URL}/biggest-gainers?apikey=${FMP_API_KEY}`;
     const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
@@ -349,7 +355,8 @@ export async function getTopLosers(): Promise<FMPMover[] | null> {
   }
 
   try {
-    const url = `${FMP_BASE_URL}/v3/stock_market/losers?apikey=${FMP_API_KEY}`;
+    // New stable API: /stable/biggest-losers
+    const url = `${FMP_BASE_URL}/biggest-losers?apikey=${FMP_API_KEY}`;
     const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
@@ -384,7 +391,8 @@ export async function getMostActive(): Promise<FMPMover[] | null> {
   }
 
   try {
-    const url = `${FMP_BASE_URL}/v3/stock_market/actives?apikey=${FMP_API_KEY}`;
+    // New stable API: /stable/most-actives
+    const url = `${FMP_BASE_URL}/most-actives?apikey=${FMP_API_KEY}`;
     const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
@@ -424,7 +432,8 @@ export async function getCompanyProfile(symbol: string): Promise<FMPCompanyProfi
   }
 
   try {
-    const url = `${FMP_BASE_URL}/v3/profile/${upperSymbol}?apikey=${FMP_API_KEY}`;
+    // New stable API: /stable/profile?symbol=SYMBOL
+    const url = `${FMP_BASE_URL}/profile?symbol=${upperSymbol}&apikey=${FMP_API_KEY}`;
     const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
@@ -442,6 +451,8 @@ export async function getCompanyProfile(symbol: string): Promise<FMPCompanyProfi
     const profile = data[0];
     cache.set(cacheKey, profile);
     log(`FMP profile fetched: ${upperSymbol}`, 'fmp', 'info');
+    // Debug: Log the actual fields returned for volume and marketCap analysis
+    log(`FMP profile ${upperSymbol} - vol keys: ${Object.keys(profile).filter(k => k.toLowerCase().includes('vol')).join(', ')}, cap keys: ${Object.keys(profile).filter(k => k.toLowerCase().includes('cap') || k.toLowerCase().includes('mkt')).join(', ')}`, 'fmp', 'debug');
     return profile;
   } catch (error) {
     logError(error as Error, `FMP profile fetch failed: ${upperSymbol}`);
@@ -471,7 +482,8 @@ export async function getStockNews(symbol: string, limit: number = 10): Promise<
   }
 
   try {
-    const url = `${FMP_BASE_URL}/v3/stock_news?tickers=${upperSymbol}&limit=${limit}&apikey=${FMP_API_KEY}`;
+    // New stable API: /stable/stock-news?symbol=SYMBOL
+    const url = `${FMP_BASE_URL}/stock-news?symbol=${upperSymbol}&limit=${limit}&apikey=${FMP_API_KEY}`;
     const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
@@ -532,7 +544,8 @@ export async function getAnalystEstimates(symbol: string, limit: number = 4): Pr
   }
 
   try {
-    const url = `${FMP_BASE_URL}/v3/analyst-estimates/${upperSymbol}?limit=${limit}&apikey=${FMP_API_KEY}`;
+    // New stable API: /stable/analyst-estimates?symbol=SYMBOL
+    const url = `${FMP_BASE_URL}/analyst-estimates?symbol=${upperSymbol}&limit=${limit}&apikey=${FMP_API_KEY}`;
     const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
@@ -568,7 +581,8 @@ export async function getPriceTargetConsensus(symbol: string): Promise<FMPPriceT
   }
 
   try {
-    const url = `${FMP_BASE_URL}/v4/price-target-consensus?symbol=${upperSymbol}&apikey=${FMP_API_KEY}`;
+    // New stable API: /stable/price-target-consensus?symbol=SYMBOL
+    const url = `${FMP_BASE_URL}/price-target-consensus?symbol=${upperSymbol}&apikey=${FMP_API_KEY}`;
     const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
@@ -608,7 +622,8 @@ export async function getPriceTargets(symbol: string, limit: number = 10): Promi
   }
 
   try {
-    const url = `${FMP_BASE_URL}/v4/price-target?symbol=${upperSymbol}&apikey=${FMP_API_KEY}`;
+    // New stable API: /stable/price-target?symbol=SYMBOL
+    const url = `${FMP_BASE_URL}/price-target?symbol=${upperSymbol}&apikey=${FMP_API_KEY}`;
     const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
@@ -645,7 +660,8 @@ export async function getStockGrades(symbol: string, limit: number = 20): Promis
   }
 
   try {
-    const url = `${FMP_BASE_URL}/v3/grade/${upperSymbol}?limit=${limit}&apikey=${FMP_API_KEY}`;
+    // New stable API: /stable/grade?symbol=SYMBOL
+    const url = `${FMP_BASE_URL}/grade?symbol=${upperSymbol}&limit=${limit}&apikey=${FMP_API_KEY}`;
     const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
@@ -681,7 +697,8 @@ export async function getGradeConsensus(symbol: string): Promise<FMPGradeConsens
   }
 
   try {
-    const url = `${FMP_BASE_URL}/v4/upgrades-downgrades-consensus?symbol=${upperSymbol}&apikey=${FMP_API_KEY}`;
+    // New stable API: /stable/upgrades-downgrades-consensus?symbol=SYMBOL
+    const url = `${FMP_BASE_URL}/upgrades-downgrades-consensus?symbol=${upperSymbol}&apikey=${FMP_API_KEY}`;
     const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
@@ -729,7 +746,8 @@ export async function getEarningsCalendar(from?: string, to?: string): Promise<F
   }
 
   try {
-    const url = `${FMP_BASE_URL}/v3/earning_calendar?from=${fromDate}&to=${toDate}&apikey=${FMP_API_KEY}`;
+    // New stable API: /stable/earning-calendar?from=DATE&to=DATE
+    const url = `${FMP_BASE_URL}/earning-calendar?from=${fromDate}&to=${toDate}&apikey=${FMP_API_KEY}`;
     const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
@@ -765,7 +783,8 @@ export async function getStockEarnings(symbol: string, limit: number = 8): Promi
   }
 
   try {
-    const url = `${FMP_BASE_URL}/v3/historical/earning_calendar/${upperSymbol}?limit=${limit}&apikey=${FMP_API_KEY}`;
+    // New stable API: /stable/historical-earning-calendar?symbol=SYMBOL
+    const url = `${FMP_BASE_URL}/historical-earning-calendar?symbol=${upperSymbol}&limit=${limit}&apikey=${FMP_API_KEY}`;
     const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
@@ -804,7 +823,8 @@ export async function getDividendCalendar(from?: string, to?: string): Promise<F
   }
 
   try {
-    const url = `${FMP_BASE_URL}/v3/stock_dividend_calendar?from=${fromDate}&to=${toDate}&apikey=${FMP_API_KEY}`;
+    // New stable API: /stable/dividend-calendar?from=DATE&to=DATE
+    const url = `${FMP_BASE_URL}/dividend-calendar?from=${fromDate}&to=${toDate}&apikey=${FMP_API_KEY}`;
     const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
@@ -843,7 +863,8 @@ export async function getIPOCalendar(from?: string, to?: string): Promise<FMPIPO
   }
 
   try {
-    const url = `${FMP_BASE_URL}/v3/ipo_calendar?from=${fromDate}&to=${toDate}&apikey=${FMP_API_KEY}`;
+    // New stable API: /stable/ipo-calendar?from=DATE&to=DATE
+    const url = `${FMP_BASE_URL}/ipo-calendar?from=${fromDate}&to=${toDate}&apikey=${FMP_API_KEY}`;
     const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
@@ -882,7 +903,8 @@ export async function getStockSplitsCalendar(from?: string, to?: string): Promis
   }
 
   try {
-    const url = `${FMP_BASE_URL}/v3/stock_split_calendar?from=${fromDate}&to=${toDate}&apikey=${FMP_API_KEY}`;
+    // New stable API: /stable/stock-split-calendar?from=DATE&to=DATE
+    const url = `${FMP_BASE_URL}/stock-split-calendar?from=${fromDate}&to=${toDate}&apikey=${FMP_API_KEY}`;
     const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
@@ -921,7 +943,8 @@ export async function getSectorPerformance(): Promise<FMPSectorPerformance[] | n
   }
 
   try {
-    const url = `${FMP_BASE_URL}/v3/sector-performance?apikey=${FMP_API_KEY}`;
+    // New stable API: /stable/sector-performance
+    const url = `${FMP_BASE_URL}/sector-performance?apikey=${FMP_API_KEY}`;
     const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
@@ -961,7 +984,8 @@ export async function getIncomeStatement(symbol: string, period: 'annual' | 'qua
   }
 
   try {
-    const url = `${FMP_BASE_URL}/v3/income-statement/${upperSymbol}?period=${period}&limit=${limit}&apikey=${FMP_API_KEY}`;
+    // New stable API: /stable/income-statement?symbol=SYMBOL
+    const url = `${FMP_BASE_URL}/income-statement?symbol=${upperSymbol}&period=${period}&limit=${limit}&apikey=${FMP_API_KEY}`;
     const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
@@ -997,7 +1021,8 @@ export async function getBalanceSheet(symbol: string, period: 'annual' | 'quarte
   }
 
   try {
-    const url = `${FMP_BASE_URL}/v3/balance-sheet-statement/${upperSymbol}?period=${period}&limit=${limit}&apikey=${FMP_API_KEY}`;
+    // New stable API: /stable/balance-sheet-statement?symbol=SYMBOL
+    const url = `${FMP_BASE_URL}/balance-sheet-statement?symbol=${upperSymbol}&period=${period}&limit=${limit}&apikey=${FMP_API_KEY}`;
     const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
@@ -1033,7 +1058,8 @@ export async function getCashFlow(symbol: string, period: 'annual' | 'quarter' =
   }
 
   try {
-    const url = `${FMP_BASE_URL}/v3/cash-flow-statement/${upperSymbol}?period=${period}&limit=${limit}&apikey=${FMP_API_KEY}`;
+    // New stable API: /stable/cash-flow-statement?symbol=SYMBOL
+    const url = `${FMP_BASE_URL}/cash-flow-statement?symbol=${upperSymbol}&period=${period}&limit=${limit}&apikey=${FMP_API_KEY}`;
     const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
@@ -1069,7 +1095,8 @@ export async function getKeyMetrics(symbol: string, period: 'annual' | 'quarter'
   }
 
   try {
-    const url = `${FMP_BASE_URL}/v3/key-metrics/${upperSymbol}?period=${period}&limit=${limit}&apikey=${FMP_API_KEY}`;
+    // New stable API: /stable/key-metrics?symbol=SYMBOL
+    const url = `${FMP_BASE_URL}/key-metrics?symbol=${upperSymbol}&period=${period}&limit=${limit}&apikey=${FMP_API_KEY}`;
     const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
@@ -1083,6 +1110,67 @@ export async function getKeyMetrics(symbol: string, period: 'annual' | 'quarter'
     return data;
   } catch (error) {
     logError(error as Error, `FMP key metrics fetch failed: ${upperSymbol}`);
+    return null;
+  }
+}
+
+/**
+ * Get the latest P/E ratio for a stock from ratios-ttm endpoint
+ * Returns just the P/E ratio number, or null if unavailable
+ */
+export async function getLatestPERatio(symbol: string): Promise<number | null> {
+  if (!hasFMP) {
+    log('FMP not configured, skipping P/E ratio fetch', 'fmp', 'debug');
+    return null;
+  }
+
+  const upperSymbol = symbol.toUpperCase();
+  const cacheKey = `fmp:pe:${upperSymbol}`;
+  const cached = cache.get<number>(cacheKey, PROFILE_CACHE_TTL);
+  // Only use cache if we have an actual positive value (don't cache null)
+  if (cached !== undefined && cached !== null && cached > 0) {
+    log(`P/E ratio from cache: ${upperSymbol} = ${cached}`, 'fmp', 'debug');
+    return cached;
+  }
+
+  try {
+    // FMP stable API: /stable/ratios-ttm for trailing twelve months ratios
+    const url = `${FMP_BASE_URL}/ratios-ttm?symbol=${upperSymbol}&apikey=${FMP_API_KEY}`;
+    const response = await fetchWithTimeout(url);
+
+    if (!response.ok) {
+      log(`FMP ratios-ttm error: ${response.status} for ${upperSymbol}`, 'fmp', 'warn');
+      return null;
+    }
+
+    const data = await response.json();
+
+    if (!data || (Array.isArray(data) && data.length === 0)) {
+      log(`FMP ratios-ttm not found: ${upperSymbol}`, 'fmp', 'debug');
+      return null;
+    }
+
+    const ratios = Array.isArray(data) ? data[0] : data;
+
+    // Look for P/E ratio in the response - FMP stable API uses priceToEarningsRatioTTM
+    const pe = ratios.priceToEarningsRatioTTM ?? ratios.peRatioTTM ?? ratios.priceEarningsRatioTTM ?? ratios.peRatio;
+
+    log(`DEBUG P/E for ${upperSymbol}: pe=${pe}, keys=${Object.keys(ratios).filter(k => k.toLowerCase().includes('pe') || k.toLowerCase().includes('price') && k.toLowerCase().includes('earning')).join(',')}`, 'fmp', 'debug');
+
+    if (pe != null) {
+      // Validate P/E ratio - must be finite and reasonable (within ±10000)
+      // Allow negative P/E for companies with negative earnings
+      if (isFinite(pe) && pe !== 0 && Math.abs(pe) < 10000) {
+        log(`P/E ratio for ${upperSymbol}: ${pe}`, 'fmp', 'debug');
+        cache.set(cacheKey, pe);
+        return pe;
+      }
+      log(`P/E ratio invalid for ${upperSymbol}: ${pe}`, 'fmp', 'debug');
+    }
+
+    return null;
+  } catch (error) {
+    logError(error as Error, `FMP ratios-ttm fetch failed: ${upperSymbol}`);
     return null;
   }
 }
@@ -1109,7 +1197,8 @@ export async function getInstitutionalHolders(symbol: string): Promise<FMPInstit
   }
 
   try {
-    const url = `${FMP_BASE_URL}/v3/institutional-holder/${upperSymbol}?apikey=${FMP_API_KEY}`;
+    // New stable API: /stable/institutional-holder?symbol=SYMBOL
+    const url = `${FMP_BASE_URL}/institutional-holder?symbol=${upperSymbol}&apikey=${FMP_API_KEY}`;
     const response = await fetchWithTimeout(url);
 
     if (!response.ok) {
@@ -1148,7 +1237,8 @@ export async function getGeneralNews(limit: number = 20): Promise<FMPNewsArticle
   }
 
   try {
-    const url = `${FMP_BASE_URL}/v3/fmp/articles?page=0&size=${limit}&apikey=${FMP_API_KEY}`;
+    // New stable API: /stable/fmp-articles?page=0&size=LIMIT
+    const url = `${FMP_BASE_URL}/fmp-articles?page=0&size=${limit}&apikey=${FMP_API_KEY}`;
     const response = await fetchWithTimeout(url);
 
     if (!response.ok) {

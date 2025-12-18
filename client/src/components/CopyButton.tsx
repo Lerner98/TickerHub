@@ -43,11 +43,12 @@ export function CopyButton({ text, className, size = 'icon' }: CopyButtonProps) 
         className
       )}
       data-testid="button-copy"
+      aria-label={copied ? "Copied to clipboard" : "Copy to clipboard"}
     >
       {copied ? (
-        <Check className="w-4 h-4" />
+        <Check className="w-4 h-4" aria-hidden="true" />
       ) : (
-        <Copy className="w-4 h-4" />
+        <Copy className="w-4 h-4" aria-hidden="true" />
       )}
     </Button>
   );

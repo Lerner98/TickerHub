@@ -17,6 +17,22 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Core React vendor chunk
+          'vendor-react': ['react', 'react-dom'],
+          // UI library chunk
+          'vendor-ui': ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-tabs', '@radix-ui/react-tooltip'],
+          // Data fetching chunk
+          'vendor-query': ['@tanstack/react-query'],
+          // Charts chunk (loaded only on stock pages)
+          'vendor-charts': ['lightweight-charts'],
+          // Search chunk
+          'vendor-search': ['fuse.js'],
+        },
+      },
+    },
   },
   server: {
     fs: {

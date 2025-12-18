@@ -5,6 +5,7 @@ import explorerRoutes from './explorer/routes';
 import statsRoutes from './stats/routes';
 import stockRoutes from './stocks/routes';
 import watchlistRoutes from './watchlist/routes';
+import aiRoutes from './ai/routes';
 
 const router = Router();
 
@@ -42,6 +43,12 @@ const router = Router();
  * - POST   /api/watchlist              - Add asset to watchlist
  * - DELETE /api/watchlist/:assetId     - Remove asset from watchlist
  * - GET    /api/watchlist/check/:assetId - Check if asset in watchlist
+ *
+ * AI Routes:
+ * - POST   /api/ai/search              - Parse natural language to filters
+ * - GET    /api/ai/summary/:symbol     - Generate stock summary
+ * - GET    /api/ai/market              - Generate market overview
+ * - GET    /api/ai/status              - AI service health status
  */
 
 // Mount all route modules
@@ -51,5 +58,6 @@ router.use(explorerRoutes);
 router.use(statsRoutes);
 router.use('/stocks', stockRoutes);
 router.use('/watchlist', watchlistRoutes); // Protected routes (requires auth)
+router.use('/ai', aiRoutes); // AI-powered features
 
 export default router;

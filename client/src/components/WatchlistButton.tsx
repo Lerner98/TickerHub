@@ -55,8 +55,9 @@ export function WatchlistButton({
             size={size}
             className={cn('cursor-not-allowed opacity-50', className)}
             disabled
+            aria-label="Sign in to add to watchlist"
           >
-            <Star className="h-4 w-4" />
+            <Star className="h-4 w-4" aria-hidden="true" />
             {showLabel && <span>Watch</span>}
           </Button>
         </TooltipTrigger>
@@ -85,6 +86,8 @@ export function WatchlistButton({
             inWatchlist && 'text-yellow-500 hover:text-yellow-600',
             className
           )}
+          aria-label={inWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
+          aria-pressed={inWatchlist}
         >
           <Star
             className={cn(
@@ -92,6 +95,7 @@ export function WatchlistButton({
               inWatchlist && 'fill-current',
               isWorking && 'animate-pulse'
             )}
+            aria-hidden="true"
           />
           {showLabel && (
             <span>{inWatchlist ? 'Watching' : 'Watch'}</span>

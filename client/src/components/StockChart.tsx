@@ -198,7 +198,7 @@ export function StockChart({ symbol, className }: StockChartProps) {
         <h3 className="font-semibold text-foreground">Price Chart</h3>
 
         {/* Timeframe Tabs */}
-        <div className="flex gap-1 bg-muted/30 rounded-lg p-1">
+        <div className="flex gap-1 bg-muted/30 rounded-lg p-1" role="tablist" aria-label="Chart timeframe">
           {timeframeOptions.map((option) => (
             <button
               key={option.value}
@@ -209,6 +209,9 @@ export function StockChart({ symbol, className }: StockChartProps) {
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
               )}
+              role="tab"
+              aria-selected={timeframe === option.value}
+              aria-label={`${option.label} timeframe`}
             >
               {option.label}
             </button>

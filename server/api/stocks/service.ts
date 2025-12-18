@@ -20,6 +20,7 @@ import { cache } from '../../lib/cache';
 import { log, logError } from '../../lib/logger';
 import { API_URLS, CACHE_TTL } from '../../lib/constants';
 import type { StockAsset, AssetSearchResult } from '../../../shared/schema';
+import { getCompanyProfile as getFMPProfile, getLatestPERatio } from './fmpService';
 
 // =============================================================================
 // CONFIGURATION
@@ -261,6 +262,89 @@ async function fetchFinnhubProfile(symbol: string): Promise<{ marketCap?: number
 }
 
 // =============================================================================
+// FINNHUB NEWS
+// =============================================================================
+
+// Finnhub news article interface
+interface FinnhubNewsArticle {
+  category: string;
+  datetime: number;
+  headline: string;
+  id: number;
+  image: string;
+  related: string;
+  source: string;
+  summary: string;
+  url: string;
+}
+
+// Normalized news article (matches FMP format for frontend compatibility)
+export interface StockNewsArticle {
+  symbol: string;
+  publishedDate: string;
+  title: string;
+  image: string;
+  site: string;
+  text: string;
+  url: string;
+}
+
+/**
+ * Fetch company news from Finnhub
+ * Used as fallback when FMP news returns empty
+ */
+export async function getFinnhubNews(symbol: string, limit: number = 10): Promise<StockNewsArticle[] | null> {
+  if (!hasFinnhub) {
+    log('Finnhub not configured, skipping news fetch', 'stocks', 'debug');
+    return null;
+  }
+
+  const upperSymbol = symbol.toUpperCase();
+  const cacheKey = `finnhub-news:${upperSymbol}`;
+  const cached = cache.get<StockNewsArticle[]>(cacheKey, CACHE_TTL.NEWS);
+  if (cached) {
+    log(`Finnhub news from cache: ${upperSymbol}`, 'stocks', 'debug');
+    return cached;
+  }
+
+  try {
+    // Finnhub requires from/to dates for company news
+    const to = new Date();
+    const from = new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000); // Last 7 days
+    const fromStr = from.toISOString().split('T')[0];
+    const toStr = to.toISOString().split('T')[0];
+
+    const url = `${API_URLS.FINNHUB}/company-news?symbol=${upperSymbol}&from=${fromStr}&to=${toStr}&token=${FINNHUB_API_KEY}`;
+    const response = await fetchWithTimeout(url);
+
+    if (!response.ok) {
+      log(`Finnhub news error: ${response.status} for ${upperSymbol}`, 'stocks', 'warn');
+      return null;
+    }
+
+    const data: FinnhubNewsArticle[] = await response.json();
+
+    // Normalize to match FMP format and limit results
+    const normalizedNews: StockNewsArticle[] = data.slice(0, limit).map((article) => ({
+      symbol: upperSymbol,
+      publishedDate: new Date(article.datetime * 1000).toISOString(),
+      title: article.headline,
+      image: article.image || '',
+      site: article.source,
+      text: article.summary,
+      url: article.url,
+    }));
+
+    cache.set(cacheKey, normalizedNews);
+    log(`Finnhub news fetched: ${normalizedNews.length} articles for ${upperSymbol}`, 'stocks', 'info');
+    return normalizedNews;
+  } catch (error) {
+    logError(error as Error, `Finnhub news fetch failed: ${upperSymbol}`);
+    return null;
+  }
+}
+
+// =============================================================================
 // PUBLIC API - Dual Provider with Fallback
 // =============================================================================
 
@@ -293,16 +377,36 @@ export async function getStockAsset(symbol: string): Promise<StockAsset | null> 
   // Try Twelve Data first (primary) for price data
   let asset = await fetchFromTwelveData(upperSymbol);
 
-  // If Twelve Data succeeded but we have Finnhub, enrich with profile data
-  if (asset && hasFinnhub) {
-    const finnhubData = await fetchFinnhubProfile(upperSymbol);
-    if (finnhubData) {
+  // Enrich with profile data (Finnhub for marketCap/sector, FMP for volume + P/E)
+  if (asset) {
+    // Try FMP first for volume (current day volume is more accurate than Twelve Data partial volume)
+    const [fmpProfile, peRatio] = await Promise.all([
+      getFMPProfile(upperSymbol),
+      getLatestPERatio(upperSymbol),
+    ]);
+    if (fmpProfile) {
+      // FMP stable API has 'volume' (current day) and 'averageVolume' (long-term avg)
+      // Prefer current day volume for accurate intraday display
+      const currentVolume = fmpProfile.volume || asset.volume24h;
       asset = {
         ...asset,
-        marketCap: finnhubData.marketCap || asset.marketCap,
-        sector: finnhubData.sector || asset.sector,
+        volume24h: currentVolume,
+        marketCap: fmpProfile.marketCap || fmpProfile.mktCap || asset.marketCap,
+        sector: fmpProfile.sector || asset.sector,
+        peRatio: peRatio || asset.peRatio,
       };
-      log(`Enriched ${upperSymbol} with Finnhub profile`, 'stocks', 'debug');
+      log(`Enriched ${upperSymbol} with FMP profile (vol: ${currentVolume}, pe: ${peRatio || 'N/A'})`, 'stocks', 'debug');
+    } else if (hasFinnhub) {
+      // Fallback to Finnhub profile for marketCap/sector only
+      const finnhubData = await fetchFinnhubProfile(upperSymbol);
+      if (finnhubData) {
+        asset = {
+          ...asset,
+          marketCap: finnhubData.marketCap || asset.marketCap,
+          sector: finnhubData.sector || asset.sector,
+        };
+        log(`Enriched ${upperSymbol} with Finnhub profile`, 'stocks', 'debug');
+      }
     }
   }
 

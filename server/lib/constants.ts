@@ -26,6 +26,7 @@ export const CACHE_TTL = {
   STOCK_QUOTE: 60_000,   // 1 minute (balance between freshness and rate limits)
   STOCK_PROFILE: 86_400_000, // 24 hours (company info rarely changes)
   STOCK_CHART: 300_000,  // 5 minutes (charts don't need real-time, save API credits)
+  NEWS: 600_000,         // 10 minutes (news doesn't change frequently)
 } as const;
 
 // API Configuration

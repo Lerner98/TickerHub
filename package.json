@@ -7,14 +7,21 @@
     "dev": "cross-env NODE_ENV=development tsx server/index.ts",
     "build": "tsx script/build.ts",
     "start": "cross-env NODE_ENV=production node dist/index.mjs",
-    "check": "tsc",
+    "check": "tsc --noEmit",
     "db:push": "drizzle-kit push",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "cleanup": "tsx scripts/cleanup.ts",
+    "check:env": "tsx scripts/check-env.ts",
+    "check:api": "tsx scripts/test-api.ts",
+    "check:full": "tsx scripts/full-check.ts",
+    "check:quick": "tsx scripts/full-check.ts --quick",
+    "dev:start": "tsx scripts/dev-start.ts"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@hookform/resolvers": "^3.10.0",
     "@jridgewell/trace-mapping": "^0.3.25",
     "@neondatabase/serverless": "^1.0.2",
