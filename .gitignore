@@ -27,3 +27,7 @@ Thumbs.db
 
 # Test coverage
 coverage/
+
+# Local archive and temp files
+ARCHIVE/
+doNow.md
